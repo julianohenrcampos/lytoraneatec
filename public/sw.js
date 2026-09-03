@@ -1,7 +1,7 @@
 /* LYTOTEC Service Worker — manual, minimalista, seguro */
 /* eslint-disable no-restricted-globals */
 
-const SW_VERSION = 'v1';
+const SW_VERSION = 'v2';
 const HTML_CACHE = `lyto-html-${SW_VERSION}`;
 const ASSET_CACHE = `lyto-assets-${SW_VERSION}`;
 const IMAGE_CACHE = `lyto-images-${SW_VERSION}`;

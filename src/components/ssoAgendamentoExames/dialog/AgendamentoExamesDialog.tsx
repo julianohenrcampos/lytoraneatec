@@ -44,8 +44,12 @@ import { LinhaTransporte } from '@/components/agendamento-exames/vale-transporte
 import { PENDING_HISTORICO_KEY } from '@/hooks/useBaixarClassificacao';
 import { gerarPdfClassificacao } from '@/utils/pdf/gerarPdfClassificacao';
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { validarJanelaClinica } from '@/utils/sso/validarJanelaClinica';
 =======
+=======
+import { useAuth } from '@/hooks/useAuth';
+>>>>>>> 08d7e2edf429aa7dbe82168ae7e30cab631aa2d4
 import { validarJanelaClinica, algumaClinicaAbertaAgora } from '@/utils/sso/validarJanelaClinica';
 import { useClinicasAbertasAgora } from '@/hooks/sso/useClinicasAbertasAgora';
 >>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
@@ -135,6 +139,7 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
   funcionarioData,
   prefillEtapa2
 }) => {
+  const { userId } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [etapa1Data, setEtapa1Data] = useState<Etapa1FormData>(initialEtapa1Data);
   const [etapa2Data, setEtapa2Data] = useState<Etapa2FormData>(initialEtapa2Data);
@@ -577,11 +582,17 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       }
     }
 
+<<<<<<< HEAD
 >>>>>>> 52562f7989b0a86f866e932d6c49a2bc9dd1bc12
+=======
+    let diagStage = 'inicio';
+>>>>>>> 08d7e2edf429aa7dbe82168ae7e30cab631aa2d4
     try {
       // Bloqueio de duplicidade: mesmo CPF + mesmo tipo de exame com
       // agendamento ativo (Pendente/Agendado). Ignora o próprio registro em edição.
       if (etapa1Data.cpf) {
+        diagStage = 'existe_agendamento_ativo';
+        console.debug('[SSO_AGENDAMENTO_DIAG]', { stage: diagStage, agendamentoId, userId });
         const existente = await agendamentoExamesService.existeAgendamentoAtivo({
           cpf: etapa1Data.cpf,
           tipo_exame: etapa2Data.tipo_exame,
@@ -610,8 +621,12 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       let savedAgendamentoId = agendamentoId;
       
       if (agendamentoId) {
+        diagStage = 'update_agendamento';
+        console.debug('[SSO_AGENDAMENTO_DIAG]', { stage: diagStage, agendamentoId, userId });
         await update({ id: agendamentoId, data: formData });
       } else {
+        diagStage = 'create_agendamento';
+        console.debug('[SSO_AGENDAMENTO_DIAG]', { stage: diagStage, agendamentoId: null, userId });
         const newAgendamento = await create(formData);
         savedAgendamentoId = newAgendamento?.id;
       }
@@ -670,6 +685,8 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
 
       // Vale Transporte (se não pulou)
       if (!vtData.skipped && savedAgendamentoId) {
+        diagStage = 'salvar_vt';
+        console.debug('[SSO_AGENDAMENTO_DIAG]', { stage: diagStage, agendamentoId: savedAgendamentoId, userId, vtSkipped: vtData?.skipped });
         const candidato = {
           nome: etapa1Data.nome_colaborador,
           cpf: etapa1Data.cpf,
@@ -678,11 +695,29 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
           data_nascimento: etapa1Data.data_nascimento,
           telefone: etapa1Data.telefone_celular,
         };
-        await valeTransporteService.salvar(savedAgendamentoId, vtData, candidato);
+        try {
+          await valeTransporteService.salvar(savedAgendamentoId, vtData, candidato);
+        } catch (vtError: any) {
+          console.error('[SSO_AGENDAMENTO_DIAG][VT_ERROR]', {
+            stage: diagStage,
+            agendamentoId: savedAgendamentoId,
+            userId,
+            code: vtError?.code,
+            message: vtError?.message,
+            details: vtError?.details,
+          });
+          // Mantém o dialog aberto para o usuário corrigir/reenviar apenas o VT
+          toast.error(
+            `O agendamento foi salvo, mas o Vale Transporte NÃO foi salvo: ${vtError?.message || 'erro desconhecido'}. Revise a etapa de VT e finalize novamente.`,
+          );
+          return;
+        }
       }
-      
+
       // Upload de arquivos pendentes
       if (pendingFiles.length > 0 && savedAgendamentoId) {
+        diagStage = 'upload_anexo';
+        console.debug('[SSO_AGENDAMENTO_DIAG]', { stage: diagStage, agendamentoId: savedAgendamentoId, userId, pendingFiles: pendingFiles.length });
         setIsUploadingFiles(true);
         for (const file of pendingFiles) {
           await uploadAnexo({ agendamentoId: savedAgendamentoId, file });
@@ -749,6 +784,16 @@ export const AgendamentoExamesDialog: React.FC<AgendamentoExamesDialogProps> = (
       onOpenChange(false);
     } catch (error: any) {
       setIsUploadingFiles(false);
+      console.error('[SSO_AGENDAMENTO_DIAG][ERROR]', {
+        stage: diagStage,
+        agendamentoId,
+        userId,
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        status: error?.status,
+      });
       console.error('[SSO_AGENDAMENTO][CRIAR_ERROR]', error);
       toast.error(error?.message || 'Não foi possível salvar o agendamento.');
     }

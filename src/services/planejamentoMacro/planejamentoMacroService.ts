@@ -227,6 +227,35 @@ export async function arquivarPlanejamentoObra(
   return atualizarPlanejamentoObra(id, { status: "arquivado" });
 }
 
+/**
+ * Torna vigente uma versão de planejamento via RPC transacional
+ * (fn_planejamento_tornar_vigente). A RPC arquiva a versão vigente anterior
+ * do mesmo CC e ativa a nova em uma única transação, respeitando escopo e
+ * permissão específica do usuário.
+ */
+export async function tornarVigentePlanejamentoObra(
+  id: string
+): Promise<PlanejamentoObraRow> {
+  const { data, error } = await (supabase as any).rpc(
+    "fn_planejamento_tornar_vigente",
+    { p_planejamento_id: id }
+  );
+  if (error) {
+    const code = (error as { code?: string }).code;
+    if (code === "42501" || code === "PGRST301") {
+      throw new Error(
+        "Você não possui permissão para tornar vigente o planejamento desta obra."
+      );
+    }
+    if (code === "23505") throw new PlanejamentoVigenteDuplicadoError();
+    if (code === "22023") {
+      throw new Error("Somente rascunho pode ser tornado vigente.");
+    }
+    throw mapSupabaseError(error);
+  }
+  return data as PlanejamentoObraRow;
+}
+
 export async function excluirPlanejamentoObra(id: string): Promise<void> {
   const { error } = await supabase
     .from("bd_planejamentos_obra")

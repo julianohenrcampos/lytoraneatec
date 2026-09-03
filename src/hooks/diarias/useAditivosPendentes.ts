@@ -84,13 +84,24 @@ export function useAprovarAditivo() {
   return useMutation({
     mutationFn: ({ aditivoId, observacao }: { aditivoId: string; observacao?: string; solicitacaoId?: string }) =>
       aprovarAditivo(aditivoId, observacao),
-    onSuccess: (_v, vars) => {
-      toast.success('Aditivo aprovado.');
+    onSuccess: (resumo, vars) => {
+      const ignorados = resumo?.ignorados ?? [];
+      if (ignorados.length > 0) {
+        toast.warning('Aditivo aprovado parcialmente.', {
+          description: `${ignorados.length} funcionário(s) mantidos por presença real registrada: ${ignorados
+            .map((i) => i.nome)
+            .join(', ')}.`,
+          duration: 10_000,
+        });
+      } else {
+        toast.success('Aditivo aprovado.');
+      }
       invalidatePendentes(qc, vars.solicitacaoId);
     },
     onError: (err: Error) => toast.error(err.message),
   });
 }
+
 
 export function useReprovarAditivo() {
   const qc = useQueryClient();

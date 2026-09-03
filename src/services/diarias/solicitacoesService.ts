@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { parseISO } from "date-fns";
 import { notificationService } from "@/services/notificationService";
 import {
   assertPeriodoValidoOuFalhar,
@@ -8,6 +9,33 @@ import {
   calcularJanelaSemanal,
 } from "@/utils/diariasPeriodoUtils";
 import { verificarDuplicidadeSolicitacao as verificarDuplicidadeNormalSemana } from "./antiFraudeService";
+
+/**
+ * Defesa em profundidade ESPECÍFICA da Solicitação EXTRAORDINÁRIA.
+ * - Datas obrigatórias.
+ * - data_fim >= data_inicio.
+ * - Intervalo <= maxDias (default 30 dias).
+ * - NÃO exige segunda-feira nem domingo.
+ * - Validação de retroativa permanece em assertRegraRetroativa (não duplicada aqui).
+ */
+function assertPeriodoExtraordinarioValido(
+  dataInicio: string,
+  dataFim: string,
+  maxDias: number = 30,
+): void {
+  if (!dataInicio || !dataFim) {
+    throw new Error('PERIODO_INVALIDO: Datas de início e fim são obrigatórias');
+  }
+  const inicio = parseISO(dataInicio);
+  const fim = parseISO(dataFim);
+  if (fim < inicio) {
+    throw new Error('PERIODO_INVALIDO: data_fim deve ser maior ou igual a data_inicio');
+  }
+  const dias = Math.floor((fim.getTime() - inicio.getTime()) / 86400000) + 1;
+  if (dias > maxDias) {
+    throw new Error(`PERIODO_INVALIDO: período máximo é de ${maxDias} dias`);
+  }
+}
 import type { 
   DiariaSolicitacao, 
   SolicitacaoFormData, 
@@ -424,7 +452,7 @@ export async function createSolicitacao(formData: SolicitacaoFormData): Promise<
     });
   } else {
     // Extraordinária: mantém validação estrutural legada (Seg→Dom 7d) e retroativo só SuperAdm.
-    await assertPeriodoEReceitaUsuario(formData.data_inicio, formData.data_fim);
+    assertPeriodoExtraordinarioValido(formData.data_inicio, formData.data_fim);
   }
 
   // Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje).
@@ -686,7 +714,7 @@ export async function updateSolicitacao(id: string, formData: Partial<Solicitaca
         solicitacaoIdAtual: id,
       });
     } else {
-      await assertPeriodoEReceitaUsuario(dataInicio, dataFim);
+      assertPeriodoExtraordinarioValido(dataInicio, dataFim);
     }
 
     // Defesa em profundidade — regra oficial de retroativa (data_inicio < hoje).

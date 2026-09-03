@@ -47,6 +47,10 @@ export interface SolicitacaoClassificacaoLoteItem {
   status: string;
   solicitado_em: string;
   solicitado_por: string;
+  /** Snapshot gravado na emissão. */
+  salario_atual: number | null;
+  /** Snapshot gravado na emissão. */
+  salario_novo: number | null;
 }
 
 /** Item editável em memória dentro do dialog (ainda não persistido). */
@@ -64,4 +68,10 @@ export interface ItemRascunhoEmMemoria {
   observacao: string | null;
   data_efetivacao_desejada: string | null;
   precisa_exame: boolean;
+  /** Snapshot de salário (atual do funcionário / base do novo cargo). */
+  salario_atual: number | null;
+  salario_novo: number | null;
+  /** Apenas para o PDF — YYYY-MM-DD. */
+  data_admissao: string | null;
 }
+

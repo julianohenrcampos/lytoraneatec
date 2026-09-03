@@ -16,13 +16,18 @@ import {
   Gavel,
   Calendar,
   ClipboardCheck,
-  
+  FileCheck,
   Activity,
   Briefcase,
   FileSearch,
   Clock,
   ScanFace,
-  HardHat
+  HardHat,
+  MapPinned,
+  LifeBuoy,
+  ListChecks,
+  CirclePlus,
+  Headphones
 } from "lucide-react";
 
 export const menuStructure = [
@@ -83,6 +88,13 @@ export const menuStructure = [
         href: "/gestao-rh/arquivo-morto",
         icon: Users,
         requiredPermission: "gestao_rh_arquivo_morto_view"
+      },
+      {
+        name: "Central de Aprovações",
+        href: "/gestao-rh/central-aprovacoes",
+        icon: FileCheck,
+        // Fase 1: aceita permissão nova OU a legada (compatibilidade).
+        requiredPermissions: ["central_aprovacoes_view", "acesso_gestao_aprovacoes"]
       },
       {
         name: "Agendamento de Exames",
@@ -176,12 +188,6 @@ export const menuStructure = [
         requiredPermission: "gestao_maquinas_relatorio_medicao_view"
       },
       {
-        name: "Disponibilidade",
-        href: "/gestao-maquinas/disponibilidade",
-        icon: Activity,
-        requiredPermission: "gestao_maquinas_caminhoes_view"
-      },
-      {
         name: "Portfólio de Empresas / Veic. e Equip.",
         href: "/gestao-maquinas/portfolio-empresas",
         icon: Briefcase,
@@ -197,8 +203,22 @@ export const menuStructure = [
         name: "Central do Transporte",
         href: "/gestao-maquinas/central-transporte",
         icon: Truck,
-        requiredPermission: "gestao_maquinas_caminhoes_view"
+        requiredPermission: "gestao_maquinas_central_transporte_view",
+        requiredAction: "visualizar"
+      },
+      {
+        name: "Mapa Operacional",
+        href: "/gestao-maquinas/mapa-operacional",
+        icon: MapPinned,
+        requiredPermission: "veiculos_equipamentos_mapa_operacional_view"
+      },
+      {
+        name: "Minhas Mobilizações",
+        href: "/minhas-mobilizacoes",
+        icon: MapPinned,
+        requiredPermission: "gestao_maquinas_minhas_mobilizacoes_view"
       }
+
     ]
   },
   {
@@ -277,12 +297,7 @@ export const menuStructure = [
         icon: BarChart3,
         requiredPermission: "diarias_relatorio_view"
       },
-      {
-        name: "Gestão de Aprovações",
-        href: "/gestao-aprovacoes-diarias",
-        icon: ClipboardCheck,
-        requiredPermission: "acesso_gestao_aprovacoes"
-      }
+      // "Gestão de Aprovações" migrada para "Central de Aprovações" em Gestão de RH (Fase 1).
       // Removido do menu operacional: "Auditoria Ponto × Diárias (Shadow)".
       // Rota /requisicoes/diarias/auditoria-ponto-shadow segue acessível
       // apenas a SuperAdm como ferramenta de diagnóstico (sem botões operacionais).
@@ -339,6 +354,12 @@ export const menuStructure = [
         href: "/sso/ver-e-agir",
         icon: ClipboardCheck,
         requiredPermission: "acesso_sso_ver_agir"
+      },
+      {
+        name: "Atestados Médicos",
+        href: "/sso/atestados",
+        icon: FileCheck,
+        requiredPermission: "saude_atestados_view"
       }
     ]
   },
@@ -377,6 +398,13 @@ export const menuStructure = [
         requiredPermission: "admin_auditoria_view"
       },
       {
+        // Exclusiva de SuperAdm (gate sintético: nenhum perfil possui essa permissão).
+        name: "Qualidade Cadastral",
+        href: "/admin/qualidade-cadastral",
+        icon: ShieldCheck,
+        requiredPermission: "__superadmin_only__"
+      },
+      {
         name: "Biometria Facial",
         href: "/admin/biometria-facial",
         icon: ScanFace,
@@ -401,5 +429,62 @@ export const menuStructure = [
         requiredPermission: "biometria_facial_gerenciar"
       }
     ]
+  },
+  {
+    groupIcon: LifeBuoy,
+    title: "Chamados Internos",
+    items: [
+      {
+        name: "Dashboard",
+        href: "/chamados-internos/dashboard",
+        icon: BarChart3,
+        requiredPermission: "chamados_internos_atender"
+      },
+      {
+        name: "Meus Chamados",
+        href: "/chamados-internos",
+        icon: ListChecks,
+        requiredPermission: "chamados_internos_view"
+      },
+      {
+        name: "Abrir Chamado",
+        href: "/chamados-internos/abrir",
+        icon: CirclePlus,
+        requiredPermission: "chamados_internos_abrir"
+      },
+      {
+        name: "Atendimento",
+        href: "/chamados-internos/atendimento",
+        icon: Headphones,
+        requiredPermission: "chamados_internos_atender"
+      },
+
+
+      {
+        name: "Administração",
+        href: "/chamados-internos/admin",
+        icon: Settings,
+        requiredPermission: "chamados_internos_admin"
+      }
+    ]
+  },
+  {
+    groupIcon: FileText,
+    title: "POPs",
+    items: [
+      {
+        name: "Biblioteca de POPs",
+        href: "/pops",
+        icon: FileText,
+        requiredPermission: "pops_view"
+      },
+      {
+        name: "Gestão de POPs",
+        href: "/pops/gestao",
+        icon: FileCheck,
+        requiredPermission: "pops_view"
+      }
+    ]
   }
 ];
+

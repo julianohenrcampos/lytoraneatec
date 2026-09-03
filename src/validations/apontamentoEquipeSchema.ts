@@ -21,6 +21,10 @@ export const apontamentoEquipeSchema = z.object({
     presente: z.boolean(),
     hora_inicio: z.string().optional(),
     hora_fim: z.string().optional(),
+    // Campos locais (não persistidos) — sanitizados antes do insert/update.
+    _avulso: z.boolean().optional(),
+    origem: z.string().optional(),
+    funcao_nome: z.string().nullable().optional(),
   })).refine((colaboradores) => {
     // Validar que pelo menos um colaborador está presente
     return colaboradores.some(col => col.presente);

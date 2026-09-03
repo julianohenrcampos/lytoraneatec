@@ -1,4 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
+import { formatItemDisplay, type ItemDisplayInput } from "@/utils/solicitacaoItemDisplay";
+import { appendCancelamentoJustificativa, STATUS_CANCELADO } from "@/utils/solicitacaoStatus";
+
 
 export type StatusFluxo = "RASCUNHO" | "PENDENTE_APROVACAO" | "APROVADO" | "EM_TRANSPORTE" | "EM_EXECUCAO" | "CONCLUIDO" | "NEGADO";
 
@@ -33,6 +36,11 @@ export interface SolicitacaoEquipamento {
   engenheiro_solicitante_id: string | null;
   apontador_responsavel_id: string | null;
   aprovador_centro_custo_id: string | null;
+  /** CHI vinculado (protocolo mestre) quando a solicitação nasceu integrada. */
+  chamado_id?: string | null;
+  aprovacao_origem?: string | null;
+  /** Departamento preferencial de atendimento. NULL = "Avaliar disponibilidade". */
+  departamento_atendimento_preferencial_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
   // Joins
@@ -42,7 +50,25 @@ export interface SolicitacaoEquipamento {
   engenheiro_nome?: string;
   apontador_nome?: string;
   aprovador_nome?: string;
+  itens?: SolicitacaoItemResumo[];
+  itens_resumo?: string | null;
 }
+
+export interface SolicitacaoItemResumo {
+  id: string;
+  solicitacao_id: string;
+  item_nao_catalogado: boolean;
+  catalogo_equipamento_id: string | null;
+  descricao_livre: string | null;
+  capacidade_descricao: string | null;
+  capacidade_valor: number | null;
+  capacidade_unidade: string | null;
+  subcategoria_id: string | null;
+  quantidade: number;
+  catalogo_descricao: string | null;
+  subcategoria_nome: string | null;
+}
+
 
 export interface SolicitacaoEquipamentoInsert {
   centro_custo_id: string;
@@ -57,6 +83,8 @@ export interface SolicitacaoEquipamentoInsert {
   justificativa: string;
   engenheiro_solicitante_id?: string | null;
   apontador_responsavel_id?: string | null;
+  /** Departamento preferencial de atendimento. NULL = "Avaliar disponibilidade". */
+  departamento_atendimento_preferencial_id?: string | null;
 }
 
 export const fetchSolicitacoesEquipamento = async (filters?: {
@@ -64,7 +92,15 @@ export const fetchSolicitacoesEquipamento = async (filters?: {
   prioridade?: string;
   tipo_equipamento_id?: string;
   status_fluxo?: string;
+  apenasMinhas?: boolean;
 }): Promise<SolicitacaoEquipamento[]> => {
+  let userIdMine: string | null = null;
+  if (filters?.apenasMinhas) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.id) return [];
+    userIdMine = user.id;
+  }
+
   let query = supabase
     .from("bd_solicitacoes_equipamento")
     .select(`
@@ -89,6 +125,10 @@ export const fetchSolicitacoesEquipamento = async (filters?: {
   if (filters?.status_fluxo) {
     query = query.eq("status_fluxo", filters.status_fluxo as any);
   }
+  if (userIdMine) {
+    query = query.eq("solicitante_id", userIdMine);
+  }
+
 
   const { data, error } = await query;
 
@@ -97,7 +137,7 @@ export const fetchSolicitacoesEquipamento = async (filters?: {
     throw error;
   }
 
-  return (data || []).map((item: any) => ({
+  const base = (data || []).map((item: any) => ({
     ...item,
     nome_centro_custo: item.centro_custo?.nome_centro_custo || null,
     codigo_centro_custo: item.centro_custo?.codigo_centro_custo || null,
@@ -105,39 +145,261 @@ export const fetchSolicitacoesEquipamento = async (filters?: {
     engenheiro_nome: item.engenheiro?.nome_completo || null,
     apontador_nome: item.apontador?.nome_completo || null,
     aprovador_nome: item.aprovador?.nome_completo || null,
-  }));
+  })) as SolicitacaoEquipamento[];
+
+  if (base.length === 0) return base;
+
+  try {
+    const itensBySolic = await fetchItensBySolicitacoes(base.map((s) => s.id));
+    for (const s of base) {
+      const list = itensBySolic.get(s.id) || [];
+      s.itens = list;
+      if (list.length > 0) {
+        const first = formatItemDisplay(list[0] as ItemDisplayInput);
+        s.itens_resumo = list.length > 1 ? `${first} (+${list.length - 1})` : first;
+      } else {
+        s.itens_resumo = null;
+      }
+    }
+  } catch (e) {
+    console.warn("[fetchSolicitacoesEquipamento] fallback itens falhou:", e);
+  }
+
+  return base;
 };
 
-export const getAprovadorByCentroCusto = async (centroCustoId: string): Promise<{ id: string; nome: string } | null> => {
+/**
+ * Busca itens de várias solicitações com fallback enriquecido.
+ * Sem RPC, sem alteração de banco.
+ */
+async function fetchItensBySolicitacoes(
+  solicitacaoIds: string[],
+): Promise<Map<string, SolicitacaoItemResumo[]>> {
+  const out = new Map<string, SolicitacaoItemResumo[]>();
+  if (solicitacaoIds.length === 0) return out;
+
+  // 1) Itens em chunks (sem joins embutidos, pra evitar PGRST200/tipagem).
+  const CHUNK = 200;
+  const rawItens: any[] = [];
+  for (let i = 0; i < solicitacaoIds.length; i += CHUNK) {
+    const chunk = solicitacaoIds.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("bd_solicitacoes_itens")
+      .select(
+        "id, solicitacao_id, item_nao_catalogado, catalogo_equipamento_id, descricao_livre, capacidade_descricao, capacidade_valor, capacidade_unidade, subcategoria_id, quantidade",
+      )
+      .in("solicitacao_id", chunk);
+    if (error) throw error;
+    if (data) rawItens.push(...data);
+  }
+
+  if (rawItens.length === 0) return out;
+
+  // 2) Subcategorias.
+  const subIds = Array.from(
+    new Set(rawItens.map((r) => r.subcategoria_id).filter((v): v is string => !!v)),
+  );
+  const subMap = new Map<string, string>();
+  if (subIds.length > 0) {
+    const { data, error } = await supabase
+      .from("bd_subcategorias_ativos")
+      .select("id, nome_subcategoria")
+      .in("id", subIds);
+    if (error) {
+      console.warn("[fetchItensBySolicitacoes][subcategorias]", error);
+    } else {
+      (data || []).forEach((s: any) => subMap.set(s.id, s.nome_subcategoria));
+    }
+  }
+
+  // 3) Catálogo.
+  const catIds = Array.from(
+    new Set(rawItens.map((r) => r.catalogo_equipamento_id).filter((v): v is string => !!v)),
+  );
+  const catMap = new Map<string, string>();
+  if (catIds.length > 0) {
+    const { data, error } = await supabase
+      .from("bd_catalogo_equipamentos")
+      .select("id, descricao_padrao")
+      .in("id", catIds);
+    if (error) {
+      console.warn("[fetchItensBySolicitacoes][catalogo]", error);
+    } else {
+      (data || []).forEach((c: any) => catMap.set(c.id, c.descricao_padrao));
+    }
+  }
+
+  // 4) Agrupar.
+  for (const r of rawItens) {
+    const resumo: SolicitacaoItemResumo = {
+      id: r.id,
+      solicitacao_id: r.solicitacao_id,
+      item_nao_catalogado: !!r.item_nao_catalogado,
+      catalogo_equipamento_id: r.catalogo_equipamento_id ?? null,
+      descricao_livre: r.descricao_livre ?? null,
+      capacidade_descricao: r.capacidade_descricao ?? null,
+      capacidade_valor: r.capacidade_valor ?? null,
+      capacidade_unidade: r.capacidade_unidade ?? null,
+      subcategoria_id: r.subcategoria_id ?? null,
+      quantidade: r.quantidade ?? 1,
+      catalogo_descricao: r.catalogo_equipamento_id ? catMap.get(r.catalogo_equipamento_id) ?? null : null,
+      subcategoria_nome: r.subcategoria_id ? subMap.get(r.subcategoria_id) ?? null : null,
+    };
+    const arr = out.get(r.solicitacao_id) ?? [];
+    arr.push(resumo);
+    out.set(r.solicitacao_id, arr);
+  }
+
+  return out;
+}
+
+
+export interface AprovadorCentroCusto {
+  id: string | null;           // profiles.id (NUNCA bd_funcionarios.id)
+  nome: string;
+  funcionario_id: string | null;
+  sem_profile: boolean;
+}
+
+export interface UsuarioOperacional {
+  profile_id: string;
+  funcionario_id: string;
+  nome_completo: string;
+  funcao_nome: string;
+  status_funcionario: string;
+}
+
+/**
+ * Retorna funcionários ativos que possuem profile vinculado.
+ * FK-safe: value dos selects será profile_id (nunca bd_funcionarios.id).
+ * Duas consultas encadeadas (sem join embutido).
+ */
+export const getUsuariosOperacionais = async (): Promise<UsuarioOperacional[]> => {
+  const { data: profilesData, error: profErr } = await supabase
+    .from("profiles")
+    .select("id, nome_completo, funcionario_id")
+    .not("funcionario_id", "is", null);
+
+  if (profErr) {
+    console.error("[getUsuariosOperacionais][profiles]", profErr);
+    throw profErr;
+  }
+
+  const profiles = (profilesData ?? []).filter((p: any) => !!p.funcionario_id);
+  if (profiles.length === 0) return [];
+
+  const funcIds = Array.from(new Set(profiles.map((p: any) => p.funcionario_id as string)));
+
+  const CHUNK = 500;
+  const funcMap = new Map<string, any>();
+  for (let i = 0; i < funcIds.length; i += CHUNK) {
+    const chunk = funcIds.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("bd_funcionarios")
+      .select("id, nome_completo, status, funcao_id, bd_funcoes(nome_funcao)")
+      .in("id", chunk)
+      .in("status", ["Ativo", "Ativo sem Registro"]);
+    if (error) {
+      console.error("[getUsuariosOperacionais][funcionarios chunk]", error);
+      throw error;
+    }
+    (data ?? []).forEach((f: any) => funcMap.set(f.id, f));
+  }
+
+  const out: UsuarioOperacional[] = [];
+  for (const p of profiles) {
+    const f = funcMap.get(p.funcionario_id as string);
+    if (!f) continue; // funcionário inativo/inexistente → não entra
+    out.push({
+      profile_id: p.id,
+      funcionario_id: p.funcionario_id,
+      nome_completo: p.nome_completo || f.nome_completo || "Sem nome",
+      funcao_nome: f.bd_funcoes?.nome_funcao || "",
+      status_funcionario: f.status || "",
+    });
+  }
+
+  out.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo, "pt-BR"));
+  return out;
+};
+
+/**
+ * Resolve aprovador do CC: converte bd_centros_custo.aprovador_diarias_id
+ * (que é bd_funcionarios.id) para profiles.id. Nunca devolve bd_funcionarios.id como id.
+ */
+export const getAprovadorByCentroCusto = async (
+  centroCustoId: string
+): Promise<AprovadorCentroCusto | null> => {
   const { data, error } = await supabase
     .from("bd_centros_custo")
     .select("aprovador_diarias_id")
     .eq("id", centroCustoId)
-    .single();
+    .maybeSingle();
 
-  if (error || !data?.aprovador_diarias_id) return null;
+  if (error) {
+    console.error("[getAprovadorByCentroCusto][cc]", error);
+    return null;
+  }
+  if (!data?.aprovador_diarias_id) return null;
+
+  const funcionarioId = data.aprovador_diarias_id as string;
 
   const { data: funcionario } = await supabase
     .from("bd_funcionarios")
     .select("id, nome_completo")
-    .eq("id", data.aprovador_diarias_id)
-    .single();
+    .eq("id", funcionarioId)
+    .maybeSingle();
 
-  if (!funcionario) return null;
-  return { id: funcionario.id, nome: funcionario.nome_completo || "Sem nome" };
+  const nome = funcionario?.nome_completo || "Sem nome";
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, nome_completo")
+    .eq("funcionario_id", funcionarioId)
+    .maybeSingle();
+
+  if (!profile?.id) {
+    return {
+      id: null,
+      nome,
+      funcionario_id: funcionarioId,
+      sem_profile: true,
+    };
+  }
+
+  return {
+    id: profile.id,
+    nome: profile.nome_completo || nome,
+    funcionario_id: funcionarioId,
+    sem_profile: false,
+  };
 };
 
 export const createSolicitacaoEquipamento = async (
   data: SolicitacaoEquipamentoInsert
 ): Promise<SolicitacaoEquipamento> => {
-  // Fetch approver from centro de custo
+  // Resolve aprovador (profiles.id) antes do insert.
   const aprovador = await getAprovadorByCentroCusto(data.centro_custo_id);
+
+  if (!aprovador || !aprovador.id || aprovador.sem_profile) {
+    const err = new Error(
+      "Centro de custo sem aprovador com usuário vinculado. Vincule o aprovador ao usuário/profile antes de criar a solicitação."
+    );
+    (err as any).code = "APROVADOR_SEM_PROFILE";
+    console.error("[SOLIC_EQUIP][SERVICE_CREATE_BLOCKED_APROVADOR]", { centro_custo_id: data.centro_custo_id, aprovador });
+    throw err;
+  }
+
+  // Preencher solicitante_id via auth quando não vier no payload
+  const { data: { user } } = await supabase.auth.getUser();
 
   const insertData: any = {
     ...data,
-    aprovador_centro_custo_id: aprovador?.id || null,
+    solicitante_id: data.solicitante_id ?? user?.id ?? null,
+    aprovador_centro_custo_id: aprovador.id,
     status_fluxo: "PENDENTE_APROVACAO",
   };
+
 
   const { data: result, error } = await supabase
     .from("bd_solicitacoes_equipamento")
@@ -150,19 +412,22 @@ export const createSolicitacaoEquipamento = async (
     .single();
 
   if (error) {
-    console.error("Error creating solicitacao equipamento:", error);
+    console.error("[SOLIC_EQUIP][SERVICE_CREATE_ERROR]", {
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    });
     throw error;
   }
 
-  // Create approval record
-  if (aprovador?.id) {
-    await supabase.from("bd_solicitacoes_equip_aprovacoes").insert({
-      solicitacao_id: result.id,
-      etapa_aprovacao: "CENTRO_CUSTO",
-      aprovador_id: aprovador.id,
-      status: "PENDENTE",
-    });
-  }
+  // Registro de aprovação — aprovador.id garantido não-null.
+  await supabase.from("bd_solicitacoes_equip_aprovacoes").insert({
+    solicitacao_id: result.id,
+    etapa_aprovacao: "CENTRO_CUSTO",
+    aprovador_id: aprovador.id,
+    status: "PENDENTE",
+  });
 
   return {
     ...result,
@@ -172,49 +437,48 @@ export const createSolicitacaoEquipamento = async (
   } as SolicitacaoEquipamento;
 };
 
+
+// ============================================================
+// N3.3 — Decisão SEMPRE pela RPC autoritativa `fn_solic_equip_decidir`.
+// A RPC persiste a decisão (header + linha de aprovação), audita e emite a
+// notificação server-side (identidade da ocorrência = aprovacao_id + data_decisao).
+// Proibido UPDATE direto aqui e proibida notificação client-side.
+// ============================================================
+async function decidirSolicitacaoEquipamento(
+  solicitacaoId: string,
+  decisao: "APROVADO" | "NEGADO",
+  comentario?: string,
+): Promise<Record<string, unknown>> {
+  const { data, error } = await supabase.rpc(
+    "fn_solic_equip_decidir" as any,
+    {
+      p_solicitacao_id: solicitacaoId,
+      p_decisao: decisao,
+      p_comentario: comentario?.trim() ? comentario.trim() : null,
+    } as any,
+  );
+  if (error) {
+    console.error("[SOLIC_EQUIP][DECIDIR_RPC_ERROR]", {
+      solicitacao_id: solicitacaoId,
+      decisao,
+      message: error.message,
+      code: (error as any).code,
+      details: (error as any).details,
+      hint: (error as any).hint,
+    });
+    throw error;
+  }
+  return (data ?? {}) as Record<string, unknown>;
+}
+
 export const aprovarSolicitacaoEquipamento = async (solicitacaoId: string, comentario?: string) => {
-  // Update approval record
-  const { error: errAprov } = await supabase
-    .from("bd_solicitacoes_equip_aprovacoes")
-    .update({
-      status: "APROVADO",
-      comentario: comentario || null,
-      data_decisao: new Date().toISOString(),
-    })
-    .eq("solicitacao_id", solicitacaoId)
-    .eq("status", "PENDENTE");
-
-  if (errAprov) throw errAprov;
-
-  // Update solicitacao status_fluxo
-  const { error } = await supabase
-    .from("bd_solicitacoes_equipamento")
-    .update({ status_fluxo: "APROVADO" } as any)
-    .eq("id", solicitacaoId);
-
-  if (error) throw error;
+  await decidirSolicitacaoEquipamento(solicitacaoId, "APROVADO", comentario);
 };
 
 export const negarSolicitacaoEquipamento = async (solicitacaoId: string, comentario?: string) => {
-  const { error: errAprov } = await supabase
-    .from("bd_solicitacoes_equip_aprovacoes")
-    .update({
-      status: "NEGADO",
-      comentario: comentario || null,
-      data_decisao: new Date().toISOString(),
-    })
-    .eq("solicitacao_id", solicitacaoId)
-    .eq("status", "PENDENTE");
-
-  if (errAprov) throw errAprov;
-
-  const { error } = await supabase
-    .from("bd_solicitacoes_equipamento")
-    .update({ status_fluxo: "NEGADO" } as any)
-    .eq("id", solicitacaoId);
-
-  if (error) throw error;
+  await decidirSolicitacaoEquipamento(solicitacaoId, "NEGADO", comentario);
 };
+
 
 export const runMatching = async (solicitacaoId: string) => {
   try {
@@ -352,3 +616,165 @@ export const listarSolicitacoesEquipamentoPorCentroPeriodo = async (params: {
 
   return (fallback.data ?? []).map(mapItem);
 };
+
+// ============================================================
+// Fase B — Ações seguras (Cancelar / Editar cabeçalho / Excluir)
+// ============================================================
+
+export class SolicitacaoJaCanceladaError extends Error {
+  code = "SOLICITACAO_JA_CANCELADA" as const;
+  constructor() {
+    super("Esta solicitação já está cancelada.");
+  }
+}
+
+/**
+ * Cancelamento lógico: seta status_fluxo=CANCELADO e anexa motivo na justificativa.
+ * Não toca em itens, aprovações, status enum, nem Central.
+ */
+export async function cancelarSolicitacaoEquipamento(
+  id: string,
+  motivo: string,
+  userLabel?: string | null,
+): Promise<void> {
+  const trimmed = motivo?.trim() ?? "";
+  if (trimmed.length < 5) {
+    throw new Error("Informe um motivo com pelo menos 5 caracteres.");
+  }
+
+  const { data: atual, error: readErr } = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .select("justificativa, status_fluxo")
+    .eq("id", id)
+    .maybeSingle();
+  if (readErr) throw readErr;
+  if (!atual) throw new Error("Solicitação não encontrada.");
+  if (String(atual.status_fluxo) === STATUS_CANCELADO) {
+    throw new SolicitacaoJaCanceladaError();
+  }
+
+  const novaJust = appendCancelamentoJustificativa(atual.justificativa, trimmed, userLabel);
+
+  const { error: updErr } = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .update({ status_fluxo: STATUS_CANCELADO, justificativa: novaJust })
+    .eq("id", id);
+  if (updErr) throw updErr;
+}
+
+const UPDATE_WHITELIST = [
+  "centro_custo_id",
+  "data_inicio",
+  "prioridade",
+  "justificativa",
+  "engenheiro_solicitante_id",
+  "apontador_responsavel_id",
+  "tipo_equipamento_id",
+  "tempo_previsto_dias",
+  "regime_trabalho",
+  "com_operador",
+] as const;
+
+export type SolicitacaoUpdatePatch = Partial<
+  Pick<SolicitacaoEquipamento, (typeof UPDATE_WHITELIST)[number]>
+>;
+
+/**
+ * Atualiza APENAS campos do cabeçalho (whitelist). Nunca altera status/status_fluxo/solicitante_id.
+ */
+export async function updateSolicitacaoEquipamento(
+  id: string,
+  patch: SolicitacaoUpdatePatch,
+): Promise<void> {
+  const safe: Record<string, unknown> = {};
+  for (const key of UPDATE_WHITELIST) {
+    if (key in patch && (patch as Record<string, unknown>)[key] !== undefined) {
+      safe[key] = (patch as Record<string, unknown>)[key];
+    }
+  }
+  if (Object.keys(safe).length === 0) return;
+
+  const { error } = await supabase
+    .from("bd_solicitacoes_equipamento")
+    .update(safe)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export interface HistoricoCriticoResult {
+  temHistoricoCritico: boolean;
+  detalhes: {
+    movimentacoes: boolean;
+    cotacoes: boolean;
+    planejamento: boolean;
+  };
+}
+
+async function checkTabelaTemLinha(
+  tabela: "bd_movimentacoes" | "bd_cotacoes" | "bd_solicitacoes_planejamento",
+  id: string,
+): Promise<boolean> {
+  try {
+    const { data, error } = await (supabase as any)
+      .from(tabela)
+      .select("id")
+      .eq("solicitacao_id", id)
+      .limit(1);
+    if (error) {
+      console.warn(`[checkHistoricoCriticoSolicitacao] ${tabela} indisponível:`, error.message);
+      return false;
+    }
+    return (data?.length ?? 0) > 0;
+  } catch (e) {
+    console.warn(`[checkHistoricoCriticoSolicitacao] falha em ${tabela}:`, e);
+    return false;
+  }
+}
+
+export async function checkHistoricoCriticoSolicitacao(
+  id: string,
+): Promise<HistoricoCriticoResult> {
+  const [movimentacoes, cotacoes, planejamento] = await Promise.all([
+    checkTabelaTemLinha("bd_movimentacoes", id),
+    checkTabelaTemLinha("bd_cotacoes", id),
+    checkTabelaTemLinha("bd_solicitacoes_planejamento", id),
+  ]);
+  return {
+    temHistoricoCritico: movimentacoes || cotacoes || planejamento,
+    detalhes: { movimentacoes, cotacoes, planejamento },
+  };
+}
+
+/**
+ * Deleção física via Edge Function autenticada.
+ * Motivo: a tabela pai não possui policy DELETE pública; a função valida o usuário
+ * e executa com service role sem alterar schema/RLS/funções SQL.
+ */
+export async function excluirSolicitacaoEquipamento(id: string): Promise<{ id: string; count: number | null }> {
+  console.log("[SOLIC_EQUIP][DELETE_START]", { id });
+  const { data, error } = await supabase.functions.invoke("excluir-solicitacao-equipamento", {
+    body: { id },
+  });
+  if (error) {
+    console.error("[SOLIC_EQUIP][DELETE_ERROR]", error);
+    let message = error.message || "Falha ao excluir solicitação.";
+    const context = (error as any)?.context;
+    if (context && typeof context.json === "function") {
+      try {
+        const body = await context.json();
+        message = body?.error || body?.message || message;
+      } catch {
+        // mantém a mensagem original do Supabase quando o corpo não for JSON
+      }
+    }
+    throw new Error(message);
+  }
+  if (!data?.success) {
+    const message = data?.error || data?.message || "A solicitação não foi excluída.";
+    console.error("[SOLIC_EQUIP][DELETE_ERROR]", data);
+    throw new Error(message);
+  }
+  console.log("[SOLIC_EQUIP][DELETE_SUCCESS]", data);
+  return { id: data.id ?? id, count: data.count ?? 1 };
+}
+

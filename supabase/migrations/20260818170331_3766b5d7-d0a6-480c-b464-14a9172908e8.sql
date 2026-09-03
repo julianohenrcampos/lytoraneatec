@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.fn_chamado_interno_dash_fila_risco(chamado_interno_setor[], uuid, integer, chamado_interno_prioridade[], uuid, text);

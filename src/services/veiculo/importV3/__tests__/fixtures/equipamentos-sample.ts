@@ -1,0 +1,68 @@
+// PR-1 V3 — Fixture com registros reais representativos.
+// Espelha o comportamento esperado do round-trip:
+//   - 3 registros com situacao Ativo/Operando/Disponível preservados em situacao_atual;
+//   - 1 registro LYE246 duplicado (bloqueio esperado na etapa posterior);
+//   - 2 SEM_ALTERACAO base.
+
+import type { EquipamentoExportRegistro } from '../../exportarEquipamentosXlsx';
+
+export const FIXTURE_EQUIPAMENTOS: EquipamentoExportRegistro[] = [
+  {
+    equipamento_id_erp: '00000000-0000-0000-0000-000000000001',
+    updated_at_origem: '2026-07-15T12:00:00.000Z',
+    codigo_canonico: 'LYE1',
+    frota_codigo: 'LYE',
+    numero_frota: '001',
+    codigo_exibicao: 'LYE001',
+    subcategoria_id_erp: '10000000-0000-0000-0000-000000000001',
+    subcategoria_nome: 'Vibroacabadora',
+    categoria_id_erp: '20000000-0000-0000-0000-000000000001',
+    categoria_nome: 'Pavimentação',
+    proprietario_regime: 'PROPRIO',
+    proprietario_cadastro_tipo: 'EMPRESA',
+    proprietario_id_erp: '30000000-0000-0000-0000-000000000001',
+    proprietario_nome: 'Lytorânea',
+    centro_custo_codigo: 'CC-100',
+    centro_custo_nome: 'Obra Centro',
+    fabricante_id_erp: '40000000-0000-0000-0000-000000000001',
+    fabricante_nome: 'Volvo',
+    modelo_id_erp: '50000000-0000-0000-0000-000000000001',
+    modelo_nome: 'ABG 6820',
+    motor: 'D7E',
+    ano_fabricacao: '2019',
+    placa: null, chassi: 'CHA0001', numero_serie: 'NS0001', renavam: null, cor: 'Amarelo',
+    tipo_combustivel: 'Diesel',
+    capacidade_valor: 8, capacidade_unidade: 'un',
+    aluguel: null,
+    departamento_id_erp: null, departamento_nome: null,
+    observacoes: null,
+    situacao_atual: 'Operando',
+    status_cadastro_atual: 'Ativo',
+    status_disponibilidade_atual: 'Alocado',
+  },
+  {
+    equipamento_id_erp: '00000000-0000-0000-0000-000000000002',
+    updated_at_origem: '2026-07-16T09:30:00.000Z',
+    codigo_canonico: 'LYE2',
+    frota_codigo: 'LYE', numero_frota: '002', codigo_exibicao: 'LYE002',
+    subcategoria_id_erp: '10000000-0000-0000-0000-000000000002',
+    subcategoria_nome: 'Rolo Compactador',
+    proprietario_regime: 'LOCADO',
+    proprietario_cadastro_tipo: 'LOCADORA',
+    proprietario_id_erp: '30000000-0000-0000-0000-000000000099',
+    proprietario_nome: 'Locadora XYZ',
+    centro_custo_codigo: 'CC-200', centro_custo_nome: 'Obra Norte',
+    fabricante_id_erp: '40000000-0000-0000-0000-000000000002', fabricante_nome: 'Caterpillar',
+    modelo_id_erp: '50000000-0000-0000-0000-000000000002', modelo_nome: 'CS54B',
+    motor: 'C4.4',
+    ano_fabricacao: '2020', placa: 'ABC1D23', chassi: 'CHA0002', numero_serie: 'NS0002',
+    renavam: '12345678901', cor: 'Amarelo', tipo_combustivel: 'Diesel',
+    capacidade_valor: 10, capacidade_unidade: 'ton',
+    aluguel: 14000.5,
+    departamento_id_erp: null, departamento_nome: null,
+    observacoes: null,
+    situacao_atual: 'Ativo',
+    status_cadastro_atual: 'Ativo',
+    status_disponibilidade_atual: 'Disponível',
+  },
+];

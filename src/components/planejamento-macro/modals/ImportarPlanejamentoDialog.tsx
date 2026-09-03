@@ -1,5 +1,5 @@
-// Fase 6F / 6H.1.1 — Modal de importação real de planejamento. SuperAdm only.
-// Após o parse, enriquece o resultado consultando bd_funcoes para mapear recursos.
+// Fase 6F / 6H.1.1 — Modal de importação real de planejamento.
+// Autorização: `canImport` (SuperAdm ou permissão engenharia_planejamento_macro_importar/criar). Backend é a autoridade final via RLS.
 
 import React from "react";
 import {
@@ -25,21 +25,21 @@ interface ImportarPlanejamentoDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   cc: CentroCustoSelecionado | null;
-  isSuperAdmin: boolean;
+  canImport: boolean;
 }
 
 const ImportarPlanejamentoDialog: React.FC<ImportarPlanejamentoDialogProps> = ({
   open,
   onOpenChange,
   cc,
-  isSuperAdmin,
+  canImport,
 }) => {
   const [parsing, setParsing] = React.useState(false);
   const [resultado, setResultado] = React.useState<ResultadoParse | null>(null);
   const importar = useImportarPlanejamentoObra();
 
-  // Gate de SuperAdm também no modal (defesa em profundidade).
-  if (!isSuperAdmin || !cc) return null;
+  // Defesa em profundidade — autoridade final é a RLS no backend.
+  if (!canImport || !cc) return null;
 
   const reset = () => {
     setResultado(null);

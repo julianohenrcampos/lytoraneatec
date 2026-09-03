@@ -8,16 +8,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { SolicitacaoEquipamentoInsert, getAprovadorByCentroCusto } from "@/services/solicitacaoEquipamentoService";
+import { SolicitacaoEquipamentoInsert, getAprovadorByCentroCusto, getUsuariosOperacionais, updateSolicitacaoEquipamento, type AprovadorCentroCusto, type SolicitacaoEquipamento, type SolicitacaoUpdatePatch } from "@/services/solicitacaoEquipamentoService";
 import { getCentrosCustoDropdown } from "@/services/veiculo/dropdownsRelacional";
 import { useQuery } from "@tanstack/react-query";
 import { Combobox } from "@/components/ui/combobox";
 import { supabase } from "@/integrations/supabase/client";
-import { Shield, Plus, Pencil, Trash2, Package, ChevronRight, ChevronLeft, Check, Info, AlertTriangle } from "lucide-react";
+import { Shield, Plus, Pencil, Trash2, Package, ChevronRight, ChevronLeft, Check, Info, AlertTriangle, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import ItemBuilderSubForm from "./ItemBuilderSubForm";
 import { SolicitacaoItemInsert, REGIME_LABELS, RegimeTrabalho } from "@/services/solicitacaoItensService";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { formatItemDisplay, isNaoCadastrado } from "@/utils/solicitacaoItemDisplay";
+import { formatDateBR } from "@/utils/formatDateBR";
+import AtendimentoPreferencialSelect, {
+  ATENDIMENTO_AVALIAR,
+  resolveDepartamentoPreferencialId,
+} from "./AtendimentoPreferencialSelect";
+import { getDepartamentosFornecedoresEquipamento } from "@/services/atendimentoPreferencialService";
+
 
 const schema = z.object({
   centro_custo_id: z.string().min(1, "Centro de custo é obrigatório"),
@@ -26,6 +35,8 @@ const schema = z.object({
   justificativa: z.string().min(1, "Justificativa é obrigatória"),
   engenheiro_solicitante_id: z.string().min(1, "Engenheiro solicitante é obrigatório"),
   apontador_responsavel_id: z.string().min(1, "Apontador responsável é obrigatório"),
+  /** 'AVALIAR' (persiste NULL) ou UUID do departamento preferencial. Obrigatório escolher. */
+  atendimento_preferencial: z.string().min(1, "Atendimento preferencial é obrigatório"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -33,8 +44,8 @@ type Step = "dados" | "itens" | "revisao";
 type ItemWithDisplay = SolicitacaoItemInsert & { _displayName?: string };
 
 const STEPS: { key: Step; label: string; number: number }[] = [
-  { key: "dados", label: "Dados", number: 1 },
-  { key: "itens", label: "Itens", number: 2 },
+  { key: "itens", label: "Itens", number: 1 },
+  { key: "dados", label: "Dados", number: 2 },
   { key: "revisao", label: "Revisão", number: 3 },
 ];
 
@@ -45,59 +56,57 @@ interface Props {
   isSubmitting: boolean;
   initialCentroCustoId?: string | null;
   initialOrigem?: "planejamento_macro" | null;
+  initialTipoEquipamentoId?: string | null;
+  initialSubcategoriaId?: string | null;
+  initialCategoriaLabel?: string | null;
+  initialCategoriaMatch?: string[];
+  initialStep?: Step;
+  mode?: "create" | "edit";
+  initialData?: SolicitacaoEquipamento | null;
+  onUpdated?: () => void;
 }
 
-const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, isSubmitting, initialCentroCustoId, initialOrigem }) => {
-  const [step, setStep] = useState<Step>("dados");
+const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onSubmit, isSubmitting, initialCentroCustoId, initialOrigem, initialTipoEquipamentoId, initialSubcategoriaId, initialCategoriaLabel, initialCategoriaMatch, initialStep, mode = "create", initialData = null, onUpdated }) => {
+  const isEdit = mode === "edit" && !!initialData;
+
+  const { toast } = useToast();
+  const [step, setStep] = useState<Step>(initialStep ?? "itens");
   const [ccPreenchidoAuto, setCcPreenchidoAuto] = useState(false);
   const [ccSugeridoNaoEncontrado, setCcSugeridoNaoEncontrado] = useState(false);
+  const [categoriaLabel, setCategoriaLabel] = useState<string | null>(initialCategoriaLabel ?? null);
+  const [categoriaMatch, setCategoriaMatch] = useState<string[]>(initialCategoriaMatch ?? []);
+  const [subcategoriaSugerida, setSubcategoriaSugerida] = useState<string | null>(initialSubcategoriaId ?? null);
+  const [isSubmitLocal, setIsSubmitLocal] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const limparFiltroCategoria = () => {
+    setCategoriaLabel(null);
+    setCategoriaMatch([]);
+    setSubcategoriaSugerida(null);
+  };
 
   const { data: centrosCusto = [] } = useQuery({
     queryKey: ["centros-custo-dropdown"],
     queryFn: getCentrosCustoDropdown,
   });
 
-  // Funcionários via RPC (mesmo padrão do módulo de Diárias - SECURITY DEFINER)
-  const { data: allFuncionarios = [] } = useQuery({
-    queryKey: ['funcionarios-para-diarias'],
-    queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let page = 0;
-      while (true) {
-        const from = page * PAGE_SIZE;
-        const to = from + PAGE_SIZE - 1;
-        const { data } = await supabase.rpc('get_funcionarios_para_diarias').range(from, to);
-        if (!data || data.length === 0) break;
-        allData = allData.concat(data);
-        if (data.length < PAGE_SIZE) break;
-        page++;
-      }
-      return allData.map((f: any) => ({
-        id: f.id,
-        nome_completo: f.nome_completo,
-        funcao_nome: f.funcao_nome || '',
-        status_funcionario: f.status_funcionario || null,
-      }));
-    }
+  // Usuários operacionais (só quem tem profile vinculado). value = profiles.id.
+  const { data: allUsuarios = [] } = useQuery({
+    queryKey: ['usuarios-operacionais-solic-equip'],
+    queryFn: getUsuariosOperacionais,
   });
 
   const engenheiros = useMemo(() =>
-    allFuncionarios.filter((f: any) => {
-      const funcao = (f.funcao_nome || '').toLowerCase();
+    allUsuarios.filter((u) => {
+      const funcao = (u.funcao_nome || '').toLowerCase();
       return funcao.includes('engenheiro') || funcao.includes('gerente regional');
     }),
-    [allFuncionarios]
+    [allUsuarios]
   );
 
-  const funcionarios = useMemo(() =>
-    allFuncionarios.filter((f: any) =>
-      ['Ativo', 'Ativo sem Registro'].includes(f.status_funcionario)
-    ),
-    [allFuncionarios]
-  );
+  const funcionarios = allUsuarios; // todos os operacionais elegíveis servem como apontador
 
-  const [aprovadorNome, setAprovadorNome] = useState<string | null>(null);
+
   const [itens, setItens] = useState<ItemWithDisplay[]>([]);
   const [showSubForm, setShowSubForm] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -113,20 +122,41 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
       justificativa: "",
       engenheiro_solicitante_id: "",
       apontador_responsavel_id: "",
+      atendimento_preferencial: "",
     },
   });
 
   const centroCustoId = form.watch("centro_custo_id");
 
-  useEffect(() => {
-    if (!centroCustoId) {
-      setAprovadorNome(null);
-      return;
-    }
-    getAprovadorByCentroCusto(centroCustoId).then((result) => {
-      setAprovadorNome(result?.nome || null);
-    });
-  }, [centroCustoId]);
+  const aprovadorQuery = useQuery({
+    queryKey: ['aprovador-cc', centroCustoId],
+    queryFn: () => getAprovadorByCentroCusto(centroCustoId!),
+    enabled: !!centroCustoId,
+    staleTime: 30_000,
+  });
+  const aprovadorInfo: AprovadorCentroCusto | null | undefined = aprovadorQuery.data;
+
+  /** Departamentos fornecedores (apenas apresentação; persistência é por UUID). */
+  const { data: depsFornecedores = [] } = useQuery({
+    queryKey: ["departamentos-fornecedores-equipamento"],
+    queryFn: getDepartamentosFornecedoresEquipamento,
+    staleTime: 5 * 60_000,
+  });
+  const atendimentoPreferencialValor = form.watch("atendimento_preferencial");
+  const atendimentoPreferencialLabel =
+    !atendimentoPreferencialValor || atendimentoPreferencialValor === ATENDIMENTO_AVALIAR
+      ? "Avaliar disponibilidade"
+      : depsFornecedores.find((d) => d.id === atendimentoPreferencialValor)?.nome ?? "—";
+  const aprovadorLoading = !!centroCustoId && (aprovadorQuery.isLoading || aprovadorQuery.isFetching) && !aprovadorInfo;
+  const aprovadorInvalido = !aprovadorLoading && (aprovadorInfo === null || aprovadorInfo === undefined || aprovadorInfo?.sem_profile === true || !aprovadorInfo?.id);
+  const aprovadorMotivo: string = (() => {
+    if (!centroCustoId) return "Selecione um centro de custo.";
+    if (aprovadorLoading) return "Carregando aprovador…";
+    if (aprovadorInfo === null || aprovadorInfo === undefined) return "Centro de custo sem aprovador definido. Configure o aprovador do CC antes de criar a solicitação.";
+    if (aprovadorInfo.sem_profile) return "Centro de custo sem aprovador com usuário vinculado. Vincule o aprovador ao usuário/profile antes de criar a solicitação.";
+    return "";
+  })();
+
 
   useEffect(() => {
     if (!isOpen) {
@@ -135,11 +165,56 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
       setShowSubForm(false);
       setEditingIndex(null);
       setItensError("");
-      setStep("dados");
+      setSubmitError(null);
+      setIsSubmitLocal(false);
+      setStep(initialStep ?? "itens");
       setCcPreenchidoAuto(false);
       setCcSugeridoNaoEncontrado(false);
       sugestaoAplicadaRef.current = false;
+      setCategoriaLabel(initialCategoriaLabel ?? null);
+      setCategoriaMatch(initialCategoriaMatch ?? []);
+      setSubcategoriaSugerida(initialSubcategoriaId ?? null);
+    } else if (isEdit && initialData) {
+      // Hidrata form em modo edição
+      form.reset({
+        centro_custo_id: initialData.centro_custo_id ?? "",
+        data_inicio: initialData.data_inicio ?? "",
+        prioridade: (initialData.prioridade as any) ?? "NORMAL",
+        justificativa: initialData.justificativa ?? "",
+        engenheiro_solicitante_id: initialData.engenheiro_solicitante_id ?? "",
+        apontador_responsavel_id: initialData.apontador_responsavel_id ?? "",
+        atendimento_preferencial:
+          (initialData as { departamento_atendimento_preferencial_id?: string | null })
+            .departamento_atendimento_preferencial_id ?? ATENDIMENTO_AVALIAR,
+      });
+      // Itens read-only (para exibição na etapa Itens)
+      const readOnlyItens: ItemWithDisplay[] = (initialData.itens ?? []).map((it: any) => ({
+        tipo_item: "EQUIPAMENTO",
+        catalogo_equipamento_id: it.catalogo_equipamento_id ?? null,
+        subcategoria_id: it.subcategoria_id ?? null,
+        item_nao_catalogado: !!it.item_nao_catalogado,
+        descricao_livre: it.descricao_livre ?? null,
+        capacidade_descricao: it.capacidade_descricao ?? null,
+        capacidade_valor: it.capacidade_valor ?? null,
+        capacidade_unidade: it.capacidade_unidade ?? null,
+        quantidade: it.quantidade ?? 1,
+        _displayName: formatItemDisplay(it),
+      })) as any;
+      setItens(readOnlyItens);
+      setShowSubForm(false);
+      setEditingIndex(null);
+      setItensError("");
+      setSubmitError(null);
+      setIsSubmitLocal(false);
+      setStep(initialStep ?? "dados");
+    } else {
+      // Sincroniza filtro/categoria ao abrir (cada abertura reflete o card clicado)
+      setStep(initialStep ?? "itens");
+      setCategoriaLabel(initialCategoriaLabel ?? null);
+      setCategoriaMatch(initialCategoriaMatch ?? []);
+      setSubcategoriaSugerida(initialSubcategoriaId ?? null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Pré-preenche Centro de Custo a partir do Planejamento Macro — UMA ÚNICA VEZ por abertura
@@ -173,20 +248,21 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
   );
 
   const engenheiroOptions = useMemo(() =>
-    engenheiros.map((e: any) => ({
-      value: e.id,
+    engenheiros.map((e) => ({
+      value: e.profile_id, // FK-safe: profiles.id
       label: e.nome_completo || "Sem nome",
     })),
     [engenheiros]
   );
 
   const funcionarioOptions = useMemo(() =>
-    funcionarios.map((f: any) => ({
-      value: f.id,
+    funcionarios.map((f) => ({
+      value: f.profile_id, // FK-safe: profiles.id
       label: f.nome_completo || "Sem nome",
     })),
     [funcionarios]
   );
+
 
   const handleAddItem = (item: ItemWithDisplay) => {
     if (editingIndex !== null) {
@@ -208,45 +284,186 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
     setShowSubForm(true);
   };
 
-  const getItemDisplayName = (item: ItemWithDisplay) => {
-    if (item.item_nao_catalogado) return item.descricao_livre || "Item não catalogado";
-    return item._displayName || "Item do catálogo";
-  };
+  const getItemDisplayName = (item: ItemWithDisplay) => formatItemDisplay(item as any);
 
-  // Step navigation
+
+  // Step navigation — ordem: Itens → Dados → Revisão
   const handleNextStep = async () => {
-    if (step === "dados") {
-      const valid = await form.trigger();
-      if (!valid) return;
-      setStep("itens");
-    } else if (step === "itens") {
+    if (step === "itens") {
       if (itens.length === 0) {
         setItensError("Adicione pelo menos 1 item à solicitação");
         return;
       }
+      setStep("dados");
+    } else if (step === "dados") {
+      const valid = await form.trigger();
+      if (!valid) return;
+      if (aprovadorLoading) {
+        toast({ title: "Aguarde", description: "Carregando aprovador do centro de custo…" });
+        return;
+      }
+      if (aprovadorInvalido) {
+        setSubmitError(aprovadorMotivo);
+        toast({ title: "Aprovador inválido", description: aprovadorMotivo, variant: "destructive" });
+        return;
+      }
+      setSubmitError(null);
       setStep("revisao");
     }
   };
 
   const handlePrevStep = () => {
-    if (step === "itens") setStep("dados");
-    else if (step === "revisao") setStep("itens");
+    if (step === "dados") setStep("itens");
+    else if (step === "revisao") setStep("dados");
   };
 
+  const buildFriendlyError = (error: any): string => {
+    const code = error?.code;
+    const message: string = error?.message ?? "";
+    const details: string = error?.details ?? "";
+    const hay = `${message} ${details}`.toLowerCase();
+    if (code === "APROVADOR_SEM_PROFILE") {
+      return message || "Centro de custo sem aprovador com usuário vinculado.";
+    }
+    if (code === "23503" && hay.includes("apontador_responsavel_id") && hay.includes("profiles")) {
+      return "O apontador selecionado não possui usuário/profile vinculado no sistema. Selecione outro apontador ou solicite ao TI o vínculo deste funcionário ao usuário.";
+    }
+    if (code === "23503" && hay.includes("engenheiro_solicitante_id") && hay.includes("profiles")) {
+      return "O engenheiro solicitante selecionado não possui usuário/profile vinculado no sistema. Selecione outro engenheiro ou solicite ao TI o vínculo deste funcionário ao usuário.";
+    }
+    if (code === "23503" && hay.includes("aprovador_centro_custo_id") && hay.includes("profiles")) {
+      return "Centro de custo sem aprovador com usuário vinculado. Vincule o aprovador ao usuário/profile antes de criar a solicitação.";
+    }
+    return message || "Não foi possível salvar a solicitação.";
+  };
+
+
   const handleFinalSubmit = async () => {
+    console.log("[SOLIC_EQUIP][SUBMIT_CLICK]", { step, itens: itens.length });
+    if (isSubmitLocal || isSubmitting) return;
+
+    if (itens.length === 0) {
+      console.warn("[SOLIC_EQUIP][SUBMIT_BLOCKED_NO_ITEMS]");
+      setItensError("Adicione pelo menos 1 item à solicitação");
+      setStep("itens");
+      toast({
+        title: "Itens obrigatórios",
+        description: "Adicione pelo menos 1 item antes de solicitar.",
+        variant: "destructive",
+      });
+      return;
+    }
+    // Defesa: nenhum item pode ter item_nao_catalogado=false sem catalogo_equipamento_id.
+    const inconsistente = itens.find((i) => !i.item_nao_catalogado && !i.catalogo_equipamento_id);
+    if (inconsistente) {
+      console.warn("[SOLIC_EQUIP][SUBMIT_BLOCKED_ITEM_INCONSISTENTE]", inconsistente);
+      setStep("itens");
+      setItensError("Há item inconsistente (sem catálogo e sem marca de não cadastrado). Edite e ajuste antes de solicitar.");
+      toast({
+        title: "Item inconsistente",
+        description: "Reabra o item, informe subcategoria+capacidade ou descrição, e salve novamente.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // EDIT MODE — atualiza apenas cabeçalho via whitelist
+    if (isEdit && initialData) {
+      const valid = await form.trigger();
+      if (!valid) {
+        setStep("dados");
+        toast({ title: "Dados incompletos", description: "Revise os dados obrigatórios.", variant: "destructive" });
+        return;
+      }
+      const values = form.getValues();
+      const patch: SolicitacaoUpdatePatch = {
+        centro_custo_id: values.centro_custo_id,
+        data_inicio: values.data_inicio,
+        prioridade: values.prioridade as any,
+        justificativa: values.justificativa,
+        engenheiro_solicitante_id: values.engenheiro_solicitante_id,
+        apontador_responsavel_id: values.apontador_responsavel_id,
+      };
+      try {
+        setIsSubmitLocal(true);
+        setSubmitError(null);
+        await updateSolicitacaoEquipamento(initialData.id, patch);
+        toast({ title: "Solicitação atualizada" });
+        onUpdated?.();
+        onClose();
+      } catch (error: any) {
+        console.error("[SOLIC_EQUIP][UPDATE_ERROR]", error);
+        const friendly = buildFriendlyError(error);
+        setSubmitError(friendly);
+        toast({ title: "Erro ao atualizar solicitação", description: friendly, variant: "destructive" });
+      } finally {
+        setIsSubmitLocal(false);
+      }
+      return;
+    }
+
+    const valid = await form.trigger();
+
+    if (!valid) {
+      console.warn("[SOLIC_EQUIP][SUBMIT_BLOCKED_INVALID_FORM]", form.formState.errors);
+      setStep("dados");
+      toast({
+        title: "Dados incompletos",
+        description: "Revise os dados obrigatórios da solicitação.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (aprovadorLoading) {
+
+      toast({ title: "Aguarde", description: "Carregando aprovador do centro de custo…" });
+      return;
+    }
+    if (aprovadorInvalido) {
+      setStep("dados");
+      setSubmitError(aprovadorMotivo);
+      toast({ title: "Aprovador inválido", description: aprovadorMotivo, variant: "destructive" });
+      return;
+    }
+
     const values = form.getValues();
     const solicitacao: SolicitacaoEquipamentoInsert = {
       centro_custo_id: values.centro_custo_id,
+      // tipo_equipamento_id representa a CATEGORIA INICIAL escolhida pelo card,
+      // não trava os itens (o usuário pode adicionar qualquer subcategoria).
+      tipo_equipamento_id: initialTipoEquipamentoId ?? null,
       quantidade: itens.reduce((acc, i) => acc + i.quantidade, 0),
       data_inicio: values.data_inicio,
       prioridade: values.prioridade as "NORMAL" | "ALTA" | "URGENTE",
       justificativa: values.justificativa,
       engenheiro_solicitante_id: values.engenheiro_solicitante_id,
       apontador_responsavel_id: values.apontador_responsavel_id,
+      departamento_atendimento_preferencial_id: resolveDepartamentoPreferencialId(
+        values.atendimento_preferencial,
+      ),
     };
     const cleanItens: SolicitacaoItemInsert[] = itens.map(({ _displayName, ...rest }) => rest);
-    await onSubmit(solicitacao, cleanItens);
+    try {
+      setIsSubmitLocal(true);
+      setSubmitError(null);
+      console.log("[SOLIC_EQUIP][SUBMIT_START]", { solicitacao, itens: cleanItens.length });
+      await onSubmit(solicitacao, cleanItens);
+      console.log("[SOLIC_EQUIP][SUBMIT_SUCCESS]");
+    } catch (error: any) {
+      console.error("[SOLIC_EQUIP][SUBMIT_ERROR]", error);
+      const friendly = buildFriendlyError(error);
+      setSubmitError(friendly);
+      toast({
+        title: "Erro ao solicitar equipamento",
+        description: friendly,
+        variant: "destructive",
+      });
+      // Não rethrow — evita unhandled rejection.
+    } finally {
+      setIsSubmitLocal(false);
+    }
   };
+
 
   // Helpers for review
   const getLabel = (options: { value: string; label: string }[], value: string) =>
@@ -258,7 +475,7 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[750px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova Solicitação de Equipamento</DialogTitle>
+          <DialogTitle>{isEdit ? "Editar Solicitação de Equipamento" : "Nova Solicitação de Equipamento"}</DialogTitle>
           <DialogDescription>
             Preencha os dados, adicione os itens e revise antes de solicitar.
           </DialogDescription>
@@ -328,13 +545,25 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                 }} />
 
                 {centroCustoId && (
-                  <div className="col-span-2 flex items-center gap-2 rounded-md border border-dashed p-3 bg-muted/30">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <span className="text-sm text-muted-foreground">
-                      Aprovador: <strong className="text-foreground">{aprovadorNome || "Nenhum aprovador vinculado"}</strong>
-                    </span>
+                  <div className={cn(
+                    "col-span-2 flex items-start gap-2 rounded-md border p-3",
+                    aprovadorInvalido ? "border-amber-300 bg-amber-50 text-amber-900" : "border-dashed bg-muted/30"
+                  )}>
+                    <Shield className={cn("h-4 w-4 mt-0.5", aprovadorInvalido ? "text-amber-700" : "text-primary")} />
+                    <div className="text-sm">
+                      {aprovadorLoading ? (
+                        <span className="text-muted-foreground">Carregando aprovador…</span>
+                      ) : aprovadorInvalido ? (
+                        <span>{aprovadorMotivo}</span>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Aprovador: <strong className="text-foreground">{aprovadorInfo?.nome}</strong>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
+
 
                 <FormField control={form.control} name="engenheiro_solicitante_id" render={({ field }) => (
                   <FormItem>
@@ -342,9 +571,11 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                     <FormControl>
                       <Combobox options={engenheiroOptions} value={field.value} onChange={field.onChange} placeholder="Selecione" searchPlaceholder="Buscar engenheiro..." emptyText="Nenhum engenheiro encontrado" />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">Somente pessoas com usuário vinculado no sistema aparecem aqui.</p>
                     <FormMessage />
                   </FormItem>
                 )} />
+
 
                 <FormField control={form.control} name="apontador_responsavel_id" render={({ field }) => (
                   <FormItem>
@@ -352,9 +583,11 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                     <FormControl>
                       <Combobox options={funcionarioOptions} value={field.value} onChange={field.onChange} placeholder="Selecione" searchPlaceholder="Buscar funcionário..." emptyText="Nenhum encontrado" />
                     </FormControl>
+                    <p className="text-xs text-muted-foreground mt-1">Somente pessoas com usuário vinculado no sistema aparecem aqui.</p>
                     <FormMessage />
                   </FormItem>
                 )} />
+
 
                 <FormField control={form.control} name="data_inicio" render={({ field }) => (
                   <FormItem>
@@ -383,6 +616,26 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                   </FormItem>
                 )} />
 
+                <FormField control={form.control} name="atendimento_preferencial" render={({ field }) => (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Atendimento preferencial *</FormLabel>
+                    <FormControl>
+                      <AtendimentoPreferencialSelect
+                        value={field.value}
+                        onChange={field.onChange}
+                        disabled={isEdit}
+                      />
+                    </FormControl>
+                    {isEdit && (
+                      <p className="text-xs text-muted-foreground">
+                        O direcionamento preferencial de uma solicitação existente é alterado pelo
+                        planejamento, com justificativa registrada no histórico.
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )} />
+
                 <FormField control={form.control} name="justificativa" render={({ field }) => (
                   <FormItem className="col-span-2">
                     <FormLabel>Justificativa *</FormLabel>
@@ -395,17 +648,36 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
               </div>
             )}
 
-            {/* STEP 2 — Itens */}
+            {/* STEP 1 — Itens */}
             {step === "itens" && (
               <div className="space-y-3">
+                {categoriaLabel && categoriaMatch.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Info className="h-4 w-4 text-primary" />
+                      <span className="text-muted-foreground">Filtro ativo:</span>
+                      <strong className="text-foreground">{categoriaLabel}</strong>
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" onClick={limparFiltroCategoria}>
+                      <X className="h-3.5 w-3.5 mr-1" /> Mostrar todos
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-sm">Itens da Solicitação</h3>
-                  {!showSubForm && (
+                  {!showSubForm && !isEdit && (
                     <Button type="button" variant="outline" size="sm" onClick={() => { setShowSubForm(true); setEditingIndex(null); }}>
                       <Plus className="h-4 w-4 mr-1" /> Adicionar Item
                     </Button>
                   )}
                 </div>
+
+                {isEdit && (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    Nesta fase, a edição altera apenas os dados principais (cabeçalho). Para alterar itens, cancele esta solicitação e crie uma nova.
+                  </div>
+                )}
 
                 {itensError && <p className="text-sm text-destructive">{itensError}</p>}
 
@@ -424,18 +696,21 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                               <Badge variant="outline" className="text-xs">Qtd: {item.quantidade}</Badge>
                               {item.com_operador && <Badge variant="outline" className="text-xs">C/ Operador</Badge>}
                               {item.regime_trabalho && <Badge variant="outline" className="text-xs">{REGIME_LABELS[item.regime_trabalho as RegimeTrabalho] || item.regime_trabalho}</Badge>}
-                              {item.item_nao_catalogado && <Badge variant="destructive" className="text-xs">Fora do catálogo</Badge>}
+                              {isNaoCadastrado(item as any) && <Badge variant="destructive" className="text-xs">Não cadastrado</Badge>}
                             </div>
+
                           </div>
                         </div>
-                        <div className="flex gap-1">
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleEditItem(idx)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(idx)}>
-                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          </Button>
-                        </div>
+                        {!isEdit && (
+                          <div className="flex gap-1">
+                            <Button type="button" variant="ghost" size="icon" onClick={() => handleEditItem(idx)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveItem(idx)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -446,8 +721,12 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                     onAdd={handleAddItem}
                     onCancel={() => { setShowSubForm(false); setEditingIndex(null); }}
                     editingItem={editingIndex !== null ? itens[editingIndex] : null}
+                    initialSubcategoriaId={editingIndex === null ? subcategoriaSugerida : null}
+                    categoriaMatch={categoriaMatch}
+                    categoriaLabel={categoriaLabel}
                   />
                 )}
+
 
                 {itens.length === 0 && !showSubForm && (
                   <div className="text-center py-8 text-muted-foreground border border-dashed rounded-md">
@@ -471,11 +750,16 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                     <span className="text-muted-foreground">Apontador:</span>
                     <span className="font-medium">{getLabel(funcionarioOptions, form.getValues("apontador_responsavel_id"))}</span>
                     <span className="text-muted-foreground">Data Início:</span>
-                    <span className="font-medium">{form.getValues("data_inicio")}</span>
+                    <span className="font-medium">{formatDateBR(form.getValues("data_inicio"))}</span>
+                    <span className="text-muted-foreground">Atendimento preferencial:</span>
+                    <span className="font-medium">{atendimentoPreferencialLabel}</span>
                     <span className="text-muted-foreground">Prioridade:</span>
                     <span className="font-medium">{prioridadeLabel[form.getValues("prioridade")] || form.getValues("prioridade")}</span>
                     <span className="text-muted-foreground">Aprovador:</span>
-                    <span className="font-medium">{aprovadorNome || "Nenhum"}</span>
+                    <span className={cn("font-medium", aprovadorInvalido && "text-amber-700")}>
+                      {aprovadorLoading ? "Carregando…" : aprovadorInvalido ? aprovadorMotivo : (aprovadorInfo?.nome || "Nenhum")}
+                    </span>
+
                   </div>
                   <div className="pt-2">
                     <span className="text-muted-foreground text-sm">Justificativa:</span>
@@ -495,6 +779,8 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
                             <Badge variant="secondary" className="text-xs">{item.tipo_item}</Badge>
                             <Badge variant="outline" className="text-xs">Qtd: {item.quantidade}</Badge>
                             {item.com_operador && <Badge variant="outline" className="text-xs">C/ Operador</Badge>}
+                            {isNaoCadastrado(item as any) && <Badge variant="destructive" className="text-xs">Não cadastrado</Badge>}
+
                           </div>
                         </div>
                       </div>
@@ -504,26 +790,45 @@ const SolicitacaoEquipamentoFormModal: React.FC<Props> = ({ isOpen, onClose, onS
               </div>
             )}
 
+            {/* Banner de erro inline (aparece em qualquer step após tentativa) */}
+            {submitError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                <strong>Erro ao salvar:</strong> {submitError}
+              </div>
+            )}
+
             {/* Footer navigation */}
             <DialogFooter className="flex justify-between sm:justify-between gap-2">
               <div>
-                {step !== "dados" && (
-                  <Button type="button" variant="outline" onClick={handlePrevStep} disabled={isSubmitting}>
+                {step !== "itens" && (
+                  <Button type="button" variant="outline" onClick={handlePrevStep} disabled={isSubmitting || isSubmitLocal}>
                     <ChevronLeft className="h-4 w-4 mr-1" /> Anterior
                   </Button>
                 )}
               </div>
               <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
+                <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting || isSubmitLocal}>Cancelar</Button>
                 {step !== "revisao" ? (
-                  <Button type="button" onClick={handleNextStep}>
+                  <Button
+                    type="button"
+                    onClick={handleNextStep}
+                    disabled={step === "dados" && !isEdit && (aprovadorLoading || aprovadorInvalido)}
+                  >
                     Próximo <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 ) : (
-                  <Button type="button" onClick={handleFinalSubmit} disabled={isSubmitting}>
-                    {isSubmitting ? "Salvando..." : "Solicitar"}
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      console.log("[SOLIC_EQUIP][SUBMIT_BUTTON_CLICK]");
+                      void handleFinalSubmit();
+                    }}
+                    disabled={isSubmitting || isSubmitLocal || (!isEdit && (aprovadorLoading || aprovadorInvalido))}
+                  >
+                    {(isSubmitting || isSubmitLocal) ? "Salvando..." : (isEdit ? "Salvar alterações" : "Solicitar")}
                   </Button>
                 )}
+
               </div>
             </DialogFooter>
           </form>

@@ -1,0 +1,1 @@
+ALTER TYPE public.chamado_interno_setor ADD VALUE IF NOT EXISTS 'asfalto';

@@ -8,13 +8,21 @@ import VeiculoFilters from "./VeiculoFilters";
 import VeiculoTable from "./VeiculoTable";
 import VeiculoFormModal from "./VeiculoFormModal";
 import VeiculoDetailsModal from "./VeiculoDetailsModal";
-import ImportVeiculosModal from "./ImportVeiculosModal";
+import ImportadorV3Modal from "./import/ImportadorV3Modal";
+import ImportadorV2Wizard from "./import/ImportadorV2Wizard";
 import DeleteVeiculoDialog from "./DeleteVeiculoDialog";
 import VeiculoHeaderActions from "./VeiculoHeaderActions";
 import GerenciarCategoriasModal from "./GerenciarCategoriasModal";
 import GerenciarSubcategoriasModal from "./GerenciarSubcategoriasModal";
 import GerenciarFrotasModal from "./GerenciarFrotasModal";
 import GerenciarLinhasOperacionaisModal from "./GerenciarLinhasOperacionaisModal";
+import {
+  hidratarExportacaoV3Simplificado,
+  calcularArquivoSha256LogicoV3,
+  gerarWorkbookV3Simplificado,
+  bytesToXlsxBlob,
+} from "@/services/veiculo/importV3";
+import { baixarBlob } from "@/services/veiculo/importV3/gerarRelatorioV3";
 import { VeiculoFormData } from "@/types/veiculo";
 
 interface VeiculoPageProps {
@@ -27,12 +35,16 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
   const [isSubcategoriaModalOpen, setIsSubcategoriaModalOpen] = useState(false);
   const [isFrotaModalOpen, setIsFrotaModalOpen] = useState(false);
   const [isLinhaOperacionalModalOpen, setIsLinhaOperacionalModalOpen] = useState(false);
+  const [isImportV2Open, setIsImportV2Open] = useState(false);
   const { isSuperAdmin, hasActionPermission } = usePermission();
   const { toast } = useToast();
   const canDeleteVeiculo =
     isSuperAdmin || hasActionPermission("gestao_maquinas_caminhoes_view", "excluir");
   const canExportVeiculo =
     isSuperAdmin || hasActionPermission("gestao_maquinas_caminhoes_view", "visualizar");
+  const importadorV2LegadoEnabled =
+    String(import.meta.env.VITE_IMPORTADOR_V2_LEGADO_ENABLED ?? '').toLowerCase() === 'true';
+  const canSeeImportadorV2 = isSuperAdmin && importadorV2LegadoEnabled;
   const {
     veiculos,
     isLoading,
@@ -85,7 +97,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
     await handleDelete();
   };
 
-  const guardedExportVeiculo = () => {
+  const guardedExportVeiculo = async () => {
     if (!canExportVeiculo) {
       toast({
         title: "Sem permissão",
@@ -94,17 +106,30 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
       });
       return;
     }
-    exportToExcel();
-  };
-
-  // This wrapper function ensures we return the proper Promise structure
-  const handleImportWrapper = async (veiculos: VeiculoFormData[]): Promise<{ success: any[]; errors: any[] }> => {
     try {
-      const result = await handleImport(veiculos);
-      return result;
-    } catch (error) {
-      console.error("Error in import wrapper:", error);
-      return { success: [], errors: [{ message: error instanceof Error ? error.message : "Unknown error during import" }] };
+      toast({ title: "Exportando…", description: "Consultando o banco e montando o arquivo V3 simplificado." });
+      const { registros, listas, total } = await hidratarExportacaoV3Simplificado();
+      const sha = await calcularArquivoSha256LogicoV3({
+        tipo_arquivo: 'EXPORTACAO',
+        linhas: registros as unknown as Array<Partial<Record<string, string | number | null>>>,
+      });
+      const bytes = await gerarWorkbookV3Simplificado({
+        tipo_arquivo: 'EXPORTACAO',
+        listas,
+        registros,
+        arquivo_sha256_logico: sha,
+        gerado_por: 'ui.veiculo_page',
+        observacoes: 'Exportação oficial V3 simplificado — 20 colunas visíveis + _controle_ref.',
+      });
+      const stamp = new Date().toISOString().slice(0, 10);
+      baixarBlob(bytesToXlsxBlob(bytes), `Equipamentos_${stamp}_V3.xlsx`);
+      toast({ title: "Exportação concluída", description: `${total} ativos exportados no formato V3 simplificado.` });
+    } catch (err) {
+      toast({
+        title: "Falha ao exportar",
+        description: err instanceof Error ? err.message : String(err),
+        variant: "destructive",
+      });
     }
   };
 
@@ -114,6 +139,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         <VeiculoHeaderActions 
           onExport={guardedExportVeiculo}
           onImport={() => setIsImportModalOpen(true)}
+          onImportV2DryRun={canSeeImportadorV2 ? () => setIsImportV2Open(true) : undefined}
           onNewClick={() => openFormModal()}
           onManageCategorias={() => setIsCategoriaModalOpen(true)}
           onManageSubcategorias={() => setIsSubcategoriaModalOpen(true)}
@@ -136,6 +162,7 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         isLoading={isLoading}
         totalVeiculos={veiculos?.length || 0}
         categorias={categoriasDropdown}
+        departamentos={departamentosDropdown || []}
       />
       
       <VeiculoTable 
@@ -173,12 +200,18 @@ const VeiculoPage: React.FC<VeiculoPageProps> = ({ initialSituacaoFilter }) => {
         onConfirm={guardedDeleteVeiculo}
       />
       
-      <ImportVeiculosModal 
+      <ImportadorV3Modal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onImport={handleImportWrapper}
-        onSuccess={handleImportSuccess}
+        onImportSucesso={handleImportSuccess}
       />
+
+      {canSeeImportadorV2 && (
+        <ImportadorV2Wizard
+          isOpen={isImportV2Open}
+          onClose={() => setIsImportV2Open(false)}
+        />
+      )}
 
       <GerenciarCategoriasModal
         isOpen={isCategoriaModalOpen}

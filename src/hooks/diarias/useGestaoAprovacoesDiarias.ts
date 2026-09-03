@@ -56,11 +56,18 @@ const STATUS_FLUXO_ATIVOS = [
   'finalizado',
 ];
 
-export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
+export interface UseGestaoAprovacoesOptions {
+  /** Se true, ignora o autoStatusFilter/escopo por role (usado pela Central de Aprovações permission-first). */
+  disableRoleAutoFilter?: boolean;
+}
+
+export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros, options: UseGestaoAprovacoesOptions = {}) {
+  const { disableRoleAutoFilter = false } = options;
   const { userId, isSuperAdmin, isLoading: isLoadingPerms } = usePermission();
   const dataScope = useDiariasDataScope();
   const [userFluxoRole, setUserFluxoRole] = useState<GestaoFluxoRole>('viewer');
   const [roleLoading, setRoleLoading] = useState(true);
+
 
   // Determine user's fluxo role via bd_user_roles
   useEffect(() => {
@@ -119,8 +126,9 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
     fetchRole();
   }, [userId, isSuperAdmin, isLoadingPerms]);
 
-  // Auto status filter by role
+  // Auto status filter by role (desligado na Central permission-first)
   const autoStatusFilter = useMemo(() => {
+    if (disableRoleAutoFilter) return null;
     switch (userFluxoRole) {
       case 'gerente_adm': return 'aguardando_aprovacao_gerenteadm';
       case 'gerente_regional': return 'aguardando_aprovacao_gerenteadm'; // D1 Fase 1
@@ -128,15 +136,17 @@ export function useGestaoAprovacoesDiarias(filtros: GestaoAprovacoesFiltros) {
       case 'diretor_adm': return 'aguardando_aprovacao_diretor_adm';
       default: return null; // superadmin/viewer see all
     }
-  }, [userFluxoRole]);
+  }, [userFluxoRole, disableRoleAutoFilter]);
 
-  // D1 Fase 3: escopo do GerenteRegional (restrito por CC).
+  // D1 Fase 3: escopo do GerenteRegional (restrito por CC) — desligado na Central permission-first.
   const isEscopoRestrito =
+    !disableRoleAutoFilter &&
     userFluxoRole === 'gerente_regional' &&
     dataScope.userScope === 'gerente' &&
     dataScope.centrosCustoGerenciados.length > 0;
   const escopoCcIds = isEscopoRestrito ? dataScope.centrosCustoGerenciados : [];
   const escopoKey = escopoCcIds.join('|');
+
 
   if (import.meta.env.DEV && userFluxoRole === 'gerente_regional' && !dataScope.isLoading) {
     console.debug('[AUDIT][gestao-aprovacoes:scope]', {

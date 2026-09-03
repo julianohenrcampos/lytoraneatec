@@ -435,7 +435,7 @@ export const updateFuncionario = async (id: string, data: FuncionarioFormData): 
       .update(diff as any)
       .eq("id", id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("Database error:", error);
@@ -445,6 +445,10 @@ export const updateFuncionario = async (id: string, data: FuncionarioFormData): 
         throw new Error('Já existe um funcionário com este CPF ou email. Verifique os dados.');
       }
       throw new Error(`Erro ao atualizar funcionário: ${error.message}`);
+    }
+
+    if (!updatedFuncionario) {
+      throw new Error('Sem permissão para editar este funcionário. Contate o administrador.');
     }
 
     return updatedFuncionario as unknown as Funcionario;

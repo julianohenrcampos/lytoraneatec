@@ -123,35 +123,69 @@ export const useApontamentoEquipeForm = ({
       if (existingData && existingData.length > 0) {
         console.log("📄 Apontamento existente encontrado:", existingData);
         setApontamentoExistente(existingData[0]);
-        
-        // Preparar dados para o formulário
-        const colaboradoresDoApontamento = existingData.map(item => ({
-          colaborador_id: item.colaborador_id || "", // Garantir que não seja null
-          nome_colaborador: item.nome_colaborador || "",
-          presente: item.presente || false,
-          hora_inicio: item.hora_inicio || "",
-          hora_fim: item.hora_fim || ""
-        }));
-        
-        // Combinar com membros da equipe para garantir que todos apareçam
-        const colaboradoresCombinados = equipeMembers.map(member => {
-          const apontamentoExistente = colaboradoresDoApontamento.find(
-            col => col.colaborador_id === member.id
-          );
-          
-          return apontamentoExistente || {
+
+        // Fase 1B — União: membros atuais da equipe + colaboradores já salvos.
+        // Preserva integralmente os valores salvos (presente/horas/nome_colaborador).
+        const salvosMap = new Map<string, any>();
+        for (const item of existingData) {
+          if (item?.colaborador_id) salvosMap.set(item.colaborador_id, item);
+        }
+        const membrosIds = new Set(
+          equipeMembers.map((m: any) => m.id).filter(Boolean)
+        );
+
+        const base = equipeMembers.map((member: any) => {
+          const salvo = salvosMap.get(member.id);
+          if (salvo) {
+            return {
+              colaborador_id: salvo.colaborador_id,
+              nome_colaborador:
+                salvo.nome_colaborador || member.nome_completo || "",
+              presente: !!salvo.presente,
+              hora_inicio: salvo.hora_inicio || "",
+              hora_fim: salvo.hora_fim || "",
+              _avulso: false,
+              funcao_nome: member.funcao_nome ?? null,
+            };
+          }
+          return {
             colaborador_id: member.id || "",
             nome_colaborador: member.nome_completo || "",
             presente: false,
             hora_inicio: "",
-            hora_fim: ""
+            hora_fim: "",
+            _avulso: false,
+            funcao_nome: member.funcao_nome ?? null,
           };
         });
-        
-        console.log("🔄 Atualizando formulário com dados existentes:", colaboradoresCombinados);
+
+        // Salvos que NÃO estão mais na composição atual → avulsos
+        const avulsos = existingData
+          .filter(
+            (item) =>
+              item?.colaborador_id && !membrosIds.has(item.colaborador_id)
+          )
+          .map((item) => ({
+            colaborador_id: item.colaborador_id!,
+            nome_colaborador: item.nome_colaborador || "",
+            presente: !!item.presente,
+            hora_inicio: item.hora_inicio || "",
+            hora_fim: item.hora_fim || "",
+            _avulso: true,
+            funcao_nome: null,
+          }));
+
+        const colaboradoresCombinados = [...base, ...avulsos];
+
+        console.log(
+          "🔄 União membros+salvos:",
+          `membros=${equipeMembers.length}`,
+          `salvos=${existingData.length}`,
+          `avulsos=${avulsos.length}`,
+          `total=${colaboradoresCombinados.length}`
+        );
         form.setValue("colaboradores", colaboradoresCombinados);
-        
-        // Atualizar outros campos do formulário
+
         if (existingData[0].lista_entrega_id) {
           form.setValue("lista_entrega_id", existingData[0].lista_entrega_id);
         }
@@ -270,6 +304,62 @@ export const useApontamentoEquipeForm = ({
     }
   }, [toast, onSubmit]);
 
+  // ---------------------------------------------------------------------------
+  // Fase 2/3/4 — helpers locais (não tocam banco, não alteram salvar)
+  // Todas as operações resolvem o índice real por colaborador_id.
+  // ---------------------------------------------------------------------------
+
+  const liberarColaborador = useCallback((originalIndex: number) => {
+    const atuais = form.getValues("colaboradores") || [];
+    if (originalIndex < 0 || originalIndex >= atuais.length) return;
+    const proximos = atuais.filter((_: any, i: number) => i !== originalIndex);
+    form.setValue("colaboradores", proximos, { shouldDirty: true, shouldValidate: false });
+  }, [form]);
+
+  const adicionarAvulso = useCallback((func: {
+    id: string;
+    nome_completo: string;
+    funcao_nome?: string | null;
+  }) => {
+    if (!func?.id) return;
+    const atuais = form.getValues("colaboradores") || [];
+    if (atuais.some((c: any) => c.colaborador_id === func.id)) return;
+    const novo = {
+      colaborador_id: func.id,
+      nome_colaborador: func.nome_completo || "",
+      presente: false,
+      hora_inicio: "",
+      hora_fim: "",
+      _avulso: true,
+      funcao_nome: func.funcao_nome ?? null,
+    };
+    form.setValue("colaboradores", [...atuais, novo], { shouldDirty: true, shouldValidate: false });
+  }, [form]);
+
+  const selecionarTodos = useCallback((ids: string[]) => {
+    if (!ids || ids.length === 0) return;
+    const atuais = form.getValues("colaboradores") || [];
+    const idSet = new Set(ids);
+    const proximos = atuais.map((c: any) =>
+      idSet.has(c.colaborador_id) ? { ...c, presente: true } : c
+    );
+    form.setValue("colaboradores", proximos, { shouldDirty: true, shouldValidate: false });
+  }, [form]);
+
+  const marcarSaidaTodos = useCallback((ids: string[], horaAtual: string) => {
+    if (!ids || ids.length === 0 || !horaAtual) return;
+    const atuais = form.getValues("colaboradores") || [];
+    const idSet = new Set(ids);
+    const proximos = atuais.map((c: any) => {
+      if (!idSet.has(c.colaborador_id)) return c;
+      if (c.presente === true && !!c.hora_inicio && !c.hora_fim) {
+        return { ...c, hora_fim: horaAtual };
+      }
+      return c;
+    });
+    form.setValue("colaboradores", proximos, { shouldDirty: true, shouldValidate: false });
+  }, [form]);
+
   return {
     form,
     handleFormSubmit,
@@ -283,6 +373,12 @@ export const useApontamentoEquipeForm = ({
     alertMessage,
     loadEquipeMembers,
     loadExistingApontamento,
-    apontamentosCarregados
+    apontamentosCarregados,
+    // helpers Fase 2/3/4
+    liberarColaborador,
+    adicionarAvulso,
+    selecionarTodos,
+    marcarSaidaTodos,
   };
 };
+

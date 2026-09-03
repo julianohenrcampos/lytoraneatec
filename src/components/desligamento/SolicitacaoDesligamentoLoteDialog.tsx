@@ -28,7 +28,8 @@ import {
 } from '@/utils/pdf/gerarPdfLoteSolicitacaoDesligamento';
 import * as svc from '@/services/rh/solicitacaoDesligamentoService';
 import { useSolicitacaoDesligamento } from '@/hooks/rh/useSolicitacoesDesligamento';
-import type { DesligamentoItemInput } from '@/types/solicitacaoRh';
+import { usePermission } from '@/hooks/usePermission';
+import type { DesligamentoItemInput, StatusSolicitacaoRh } from '@/types/solicitacaoRh';
 
 interface Props {
   open: boolean;
@@ -52,6 +53,8 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
   open, onOpenChange, solicitacaoId,
 }) => {
   const { perfil } = useProfile();
+  const { userId, isSuperAdmin } = usePermission();
+  const scopeUserId: string | null = isSuperAdmin ? null : (userId ?? null);
   const qc = useQueryClient();
   const { data: existente, isLoading: loadingExistente } = useSolicitacaoDesligamento(open ? solicitacaoId ?? null : null);
 
@@ -62,7 +65,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
 
   const [solId, setSolId] = useState<string | null>(null);
   const [protocolo, setProtocolo] = useState<string>('');
-  const [status, setStatus] = useState<'rascunho' | 'emitida' | 'cancelada'>('rascunho');
+  const [status, setStatus] = useState<StatusSolicitacaoRh>('rascunho');
   const [observacoes, setObservacoes] = useState('');
   const [itens, setItens] = useState<ItemEstado[]>([]);
   const [salarioStr, setSalarioStr] = useState<Record<string, string>>({});
@@ -121,7 +124,50 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     setItens(mapped);
     setSalarioStr(ss);
     setRescisaoStr(rs);
+
+    // Re-hidratação de snapshots em RASCUNHO: o cadastro do funcionário pode ter
+    // mudado (ex.: transferência de Centro de Custo) após a gravação do item.
+    // Enquanto o documento não é emitido, exibimos o cadastro ATUAL.
+    if (existente.header.status !== 'rascunho') return;
+    const ids = mapped.map((m) => m.funcionario_id).filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    let cancelado = false;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('bd_funcionarios')
+        .select(`
+          id, nome_completo, matricula, cpf, data_admissao, centro_custo_id,
+          bd_funcoes(nome_funcao),
+          bd_centros_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo)
+        `)
+        .in('id', ids);
+      if (error || !data || cancelado) return;
+      const atuais = new Map<string, any>((data as any[]).map((f) => [f.id, f]));
+      setItens((prev) =>
+        prev.map((it) => {
+          const f = atuais.get(it.funcionario_id);
+          if (!f) return it;
+          const cc = f.bd_centros_custo
+            ? `${f.bd_centros_custo.codigo_centro_custo} - ${f.bd_centros_custo.nome_centro_custo}`
+            : it.centro_custo;
+          return {
+            ...it,
+            nome: f.nome_completo ?? it.nome,
+            matricula: f.matricula ?? it.matricula,
+            cargo: f.bd_funcoes?.nome_funcao || it.cargo,
+            cpf: f.cpf ?? it.cpf,
+            data_admissao: f.data_admissao ?? it.data_admissao,
+            centro_custo_id: f.centro_custo_id ?? it.centro_custo_id,
+            centro_custo: cc,
+          };
+        }),
+      );
+    })();
+    return () => {
+      cancelado = true;
+    };
   }, [open, solicitacaoId, existente]);
+
 
   const adicionarFuncionario = async (funcId: string) => {
     if (readOnly) return;
@@ -183,7 +229,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     if (it._persistedId && solId) {
       setRemoving(true);
       try {
-        await svc.removerItem(it._persistedId);
+        await svc.removerItem(it._persistedId, scopeUserId);
         const restantes = itens.filter((x) => x._persistedId !== it._persistedId);
         setItens(restantes);
         setSalarioStr((prev) => { const c = { ...prev }; delete c[funcId]; return c; });
@@ -204,7 +250,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
             data_desligamento: r.data_desligamento,
           })),
         );
-        await svc.atualizarRascunhoHeader(solId, totais);
+        await svc.atualizarRascunhoHeader(solId, totais, scopeUserId);
         qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
         toast.success('Funcionário removido da solicitação.');
       } catch (e: any) {
@@ -275,9 +321,9 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
       toast.success('Rascunho salvo.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
     } catch (e: any) {
@@ -296,10 +342,10 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       const id = await garantirRascunho();
       const persist = itensParaPersistir();
-      await svc.substituirItens(id, persist);
+      await svc.substituirItens(id, persist, scopeUserId);
       const totais = svc.calcularTotais(persist);
-      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais });
-      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_id));
+      await svc.atualizarRascunhoHeader(id, { observacoes, ...totais }, scopeUserId);
+      await svc.emitirSolicitacao(id, perfil ?? null, persist.map((p) => p.centro_custo_id), scopeUserId);
       toast.success(`Solicitação ${protocolo} emitida.`);
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
       onOpenChange(false);
@@ -316,7 +362,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     try {
       let header = existente?.header;
       if (!header && solId) {
-        const got = await svc.obterSolicitacao(solId);
+        const got = await svc.obterSolicitacao(solId, scopeUserId);
         header = got.header;
       }
       gerarPdfLoteSolicitacaoDesligamento({
@@ -340,7 +386,7 @@ export const SolicitacaoDesligamentoLoteDialog: React.FC<Props> = ({
     if (!solId) return;
     setCanceling(true);
     try {
-      await svc.cancelarSolicitacao(solId);
+      await svc.cancelarSolicitacao(solId, scopeUserId);
       toast.success('Solicitação cancelada.');
       qc.invalidateQueries({ queryKey: ['solicitacoes-desligamento'] });
       setConfirmCancelOpen(false);

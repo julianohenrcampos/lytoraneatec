@@ -45,6 +45,8 @@ const statusOptions = [
   { value: "Enviada", label: "Enviada" },
   { value: "Entregue", label: "Entregue" },
   { value: "Cancelada", label: "Cancelada" },
+  { value: "Manual", label: "Manual" },
+  { value: "Rascunho", label: "Rascunho" },
 ];
 
 const RegistroAplicacaoFilters: React.FC<RegistroAplicacaoFiltersProps> = ({

@@ -1,45 +1,142 @@
 import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { CT3B_SOLICITACAO_PAGE_ENABLED } from "@/config/ct3Flags";
 
 import { fetchSolicitacoesTransporte, SolicitacaoTransporte } from "@/services/centralTransporteService";
 import { SolicitacaoItem } from "@/services/solicitacaoItensService";
 import CentralTransporteFilters from "./CentralTransporteFilters";
 import CentralTransporteTable, { SolicitacaoTransporteComItens } from "./CentralTransporteTable";
 import AnaliseOperacionalSheet from "./AnaliseOperacionalSheet";
+import { useAuth } from "@/hooks/useAuth";
+import useCtOperation from "@/hooks/central-transporte/useCtOperation";
+import useCentralTransporteCapabilities from "@/hooks/central-transporte/useCentralTransporteCapabilities";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MovimentacoesDiretasWorkspace from "./mov-direta/MovimentacoesDiretasWorkspace";
+import PuxadasWorkspace from "./puxada/PuxadasWorkspace";
+
+import { AlertTriangle } from "lucide-react";
+import {
+  criarStateDeRetorno,
+  lerFiltrosDoState,
+} from "@/utils/central-transporte/centralReturnState";
+
+export type SelectedContext = {
+  solicitacao: SolicitacaoTransporteComItens;
+  item: SolicitacaoItem | null;
+};
+
+export type CentralTransporteFilterState = {
+  centro_custo_id?: string;
+  departamento_id?: string;
+  prioridade?: string;
+  tipo_equipamento_id?: string;
+  status_fluxo?: string;
+};
 
 const CentralTransportePage: React.FC = () => {
-  const [filters, setFilters] = useState<any>({});
-  const [selected, setSelected] = useState<SolicitacaoTransporte | null>(null);
+  const location = useLocation();
+  // Retorno da página dedicada: restaura os filtros vigentes na saída.
+  const [filters, setFilters] = useState<CentralTransporteFilterState>(() =>
+    lerFiltrosDoState(location.state),
+  );
+  const [selected, setSelected] = useState<SelectedContext | null>(null);
+  const { userId } = useAuth();
+  const navigate = useNavigate();
+
+  // Motor de idempotência: vive aqui (componente persistente) para que o
+  // request_id sobreviva ao fechamento do modal e à reabertura da solicitação.
+  const ctOperation = useCtOperation();
+  const capabilities = useCentralTransporteCapabilities();
+
+  const temTentativaIncerta = Array.from(ctOperation.attempts.values()).some(
+    (a) => a.state === "UNCERTAIN",
+  );
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["central-transporte", filters],
     queryFn: () => fetchSolicitacoesTransporte(filters),
   });
 
-  const handleSelect = (s: SolicitacaoTransporteComItens, _item?: SolicitacaoItem) => {
-    setSelected(s);
+  const handleSelect = (s: SolicitacaoTransporteComItens, item?: SolicitacaoItem) => {
+    // CT-3B: com a flag ligada, a análise passa a ser uma página dedicada.
+    if (CT3B_SOLICITACAO_PAGE_ENABLED) {
+      const query = item?.id ? `?item=${encodeURIComponent(item.id)}` : "";
+      navigate(`/gestao-maquinas/central-transporte/solicitacao/${s.id}${query}`, {
+        state: criarStateDeRetorno(filters),
+      });
+      return;
+    }
+    setSelected({ solicitacao: s, item: item ?? null });
   };
 
   return (
     <div className="space-y-4">
-
-
-
-      <CentralTransporteFilters filters={filters} onChange={setFilters} />
-
-      {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Carregando...</div>
-      ) : (
-        <CentralTransporteTable data={data || []} onSelect={handleSelect} />
+      {temTentativaIncerta && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            Existe uma operação da Central do Transporte sem confirmação. Reabra a solicitação
+            correspondente e repita a mesma operação — a chave de idempotência foi preservada e o
+            registro não será duplicado.
+          </AlertDescription>
+        </Alert>
       )}
 
+      <Tabs defaultValue="solicitacoes" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="solicitacoes">Solicitações</TabsTrigger>
+          <TabsTrigger value="movimentacoes" data-testid="ct4-tab-movimentacoes">
+            Movimentações
+          </TabsTrigger>
+          <TabsTrigger value="puxadas" data-testid="ct5-tab-puxadas">
+            Puxadas
+          </TabsTrigger>
+        </TabsList>
+
+
+        <TabsContent value="solicitacoes" className="space-y-4">
+          <CentralTransporteFilters filters={filters} onChange={setFilters} />
+
+          {isLoading ? (
+            <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+          ) : (
+            <CentralTransporteTable data={data || []} onSelect={handleSelect} />
+          )}
+        </TabsContent>
+
+        <TabsContent value="movimentacoes">
+          <MovimentacoesDiretasWorkspace />
+        </TabsContent>
+
+        <TabsContent value="puxadas">
+          <PuxadasWorkspace />
+        </TabsContent>
+
+      </Tabs>
+
       <AnaliseOperacionalSheet
-        solicitacao={selected}
+        context={selected}
         open={!!selected}
         onClose={() => setSelected(null)}
+        ctOperation={ctOperation}
+        capabilities={capabilities}
+
         onDecisaoSaved={() => {
+          const solicitacaoSelecionada = selected?.solicitacao as (SolicitacaoTransporte & {
+            solicitante_id?: string | null;
+            engenheiro_solicitante_id?: string | null;
+            apontador_responsavel_id?: string | null;
+          }) | undefined;
+
           refetch();
-          setSelected(null);
+          // A análise permanece aberta: o operador pode registrar outros
+          // atendimentos do mesmo item sem reabrir a solicitação.
+
+
+          // N3: a notificação de mudança de etapa é emitida server-side
+          // pelo trigger de status/status_fluxo da solicitação.
         }}
       />
     </div>

@@ -18,6 +18,7 @@ export interface FuncionarioOption {
   elegivel?: boolean;
   motivo_bloqueio?: string | null;
   fora_centro_custo_solicitacao?: boolean;
+  funcao_nome: string | null;
   bd_funcoes: {
     id: string;
     nome_funcao: string;
@@ -27,6 +28,7 @@ export interface FuncionarioOption {
   } | null;
 }
 
+
 // Adapta linhas vindas das RPCs (campos achatados) para o shape
 // esperado por mapFuncionarioRecord.
 export const mapRpcRow = (row: any) => ({
@@ -35,6 +37,9 @@ export const mapRpcRow = (row: any) => ({
 });
 
 export const mapFuncionarioRecord = (funcionario: any): FuncionarioOption => ({
+  funcao_nome:
+    funcionario.bd_funcoes?.nome_funcao ?? funcionario.funcao_nome ?? null,
+
   id: funcionario.id,
   nome_completo: funcionario.nome_completo,
   cpf: funcionario.cpf ?? null,

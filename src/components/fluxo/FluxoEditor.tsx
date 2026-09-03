@@ -18,14 +18,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Plus, Loader2 } from "lucide-react";
 import EtapaCard from "./EtapaCard";
 import VinculacaoCCSection from "./VinculacaoCCSection";
-import { useEtapas, useVinculacoes, useCreateFluxo, useUpdateFluxo, useSaveEtapas, useSaveVinculacoes } from "@/hooks/useFluxoConfig";
-import type { FluxoAprovacao, FluxoFormData, EtapaFormData, TipoAprovador } from "@/types/fluxoAprovacao";
+import AplicacaoFluxoSection from "./AplicacaoFluxoSection";
+import {
+  useEtapas,
+  useVinculacoes,
+  useAplicacoes,
+  useCreateFluxo,
+  useUpdateFluxo,
+  useSaveEtapas,
+  useSaveVinculacoes,
+  useSaveAplicacoes,
+} from "@/hooks/useFluxoConfig";
+import type {
+  FluxoAprovacao,
+  FluxoFormData,
+  EtapaFormData,
+  TipoAprovador,
+  AplicacaoFormData,
+} from "@/types/fluxoAprovacao";
 import { useToast } from "@/hooks/use-toast";
 
 interface FluxoEditorProps {
@@ -38,10 +55,18 @@ const NEW_ETAPA: EtapaFormData = {
   ordem: 1,
   nome_exibicao: "",
   nome_tecnico: "",
-  tipo_aprovador: "gerente_adm" as TipoAprovador,
+  tipo_aprovador: "engenheiro_responsavel_cc" as TipoAprovador,
   cargo_id: null,
+  permission_id: null,
+  usuario_especifico_id: null,
   obrigatorio: true,
   permite_multiplo: false,
+};
+
+const EMPTY_APLICACAO: AplicacaoFormData = {
+  processo_tipo: null,
+  todos_centros_custo: false,
+  centro_custo_ids: [],
 };
 
 export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) {
@@ -51,36 +76,44 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
   const [form, setForm] = useState<FluxoFormData>({ nome: "", descricao: "", ativo: true });
   const [etapas, setEtapas] = useState<EtapaFormData[]>([]);
   const [ccIds, setCCIds] = useState<string[]>([]);
+  const [aplicacao, setAplicacao] = useState<AplicacaoFormData>(EMPTY_APLICACAO);
   const [saving, setSaving] = useState(false);
 
   const { data: existingEtapas } = useEtapas(fluxo?.id || null);
   const { data: existingVinc } = useVinculacoes(fluxo?.id || null);
+  const { data: existingAplic } = useAplicacoes(fluxo?.id || null);
 
   const createFluxo = useCreateFluxo();
   const updateFluxo = useUpdateFluxo();
   const saveEtapas = useSaveEtapas();
   const saveVinculacoes = useSaveVinculacoes();
+  const saveAplicacoes = useSaveAplicacoes();
 
   useEffect(() => {
     if (fluxo) {
       setForm({ nome: fluxo.nome, descricao: fluxo.descricao || "", ativo: fluxo.ativo });
     } else {
       setForm({ nome: "", descricao: "", ativo: true });
+      setAplicacao(EMPTY_APLICACAO);
     }
   }, [fluxo, open]);
 
   useEffect(() => {
     if (existingEtapas) {
-      setEtapas(existingEtapas.map((e) => ({
-        id: e.id,
-        ordem: e.ordem,
-        nome_exibicao: e.nome_exibicao,
-        nome_tecnico: e.nome_tecnico,
-        tipo_aprovador: e.tipo_aprovador as TipoAprovador,
-        cargo_id: e.cargo_id,
-        obrigatorio: e.obrigatorio,
-        permite_multiplo: e.permite_multiplo,
-      })));
+      setEtapas(
+        existingEtapas.map((e) => ({
+          id: e.id,
+          ordem: e.ordem,
+          nome_exibicao: e.nome_exibicao,
+          nome_tecnico: e.nome_tecnico,
+          tipo_aprovador: e.tipo_aprovador as TipoAprovador,
+          cargo_id: e.cargo_id,
+          permission_id: e.permission_id ?? null,
+          usuario_especifico_id: e.usuario_especifico_id ?? null,
+          obrigatorio: e.obrigatorio,
+          permite_multiplo: e.permite_multiplo,
+        }))
+      );
     } else if (!fluxo) {
       setEtapas([]);
     }
@@ -93,6 +126,27 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
       setCCIds([]);
     }
   }, [existingVinc, fluxo]);
+
+  useEffect(() => {
+    if (existingAplic) {
+      if (existingAplic.length === 0) {
+        setAplicacao(EMPTY_APLICACAO);
+        return;
+      }
+      const processo = existingAplic[0].processo_tipo;
+      const isDefault = existingAplic.some((a) => a.centro_custo_id === null);
+      setAplicacao({
+        processo_tipo: processo,
+        todos_centros_custo: isDefault,
+        centro_custo_ids: existingAplic
+          .filter((a) => a.centro_custo_id !== null)
+          .map((a) => a.centro_custo_id as string),
+      });
+    }
+  }, [existingAplic]);
+
+  const isLegadoDiarias =
+    isEditing && (existingAplic?.length ?? 0) === 0 && (existingVinc?.length ?? 0) > 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -143,6 +197,40 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
       return;
     }
 
+    const semUsuario = etapas.find(
+      (e) => e.tipo_aprovador === "usuario_especifico" && !e.usuario_especifico_id
+    );
+    if (semUsuario) {
+      toast({
+        title: `Etapa ${semUsuario.ordem}: selecione o usuário aprovador`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const semPermissao = etapas.find(
+      (e) => e.tipo_aprovador === "permissao_rbac" && !e.permission_id
+    );
+    if (semPermissao) {
+      toast({
+        title: `Etapa ${semPermissao.ordem}: selecione a permissão exigida`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (
+      aplicacao.processo_tipo &&
+      !aplicacao.todos_centros_custo &&
+      aplicacao.centro_custo_ids.length === 0
+    ) {
+      toast({
+        title: "Selecione ao menos um Centro de Custo ou aplique a todos",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSaving(true);
     try {
       let fluxoId: string;
@@ -157,6 +245,12 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
 
       await saveEtapas.mutateAsync({ fluxoId, etapas });
       await saveVinculacoes.mutateAsync({ fluxoId, ccIds });
+      await saveAplicacoes.mutateAsync({
+        fluxoId,
+        processoTipo: aplicacao.processo_tipo,
+        todosCentrosCusto: aplicacao.todos_centros_custo,
+        centroCustoIds: aplicacao.centro_custo_ids,
+      });
 
       onClose();
     } catch (err) {
@@ -170,7 +264,14 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar Fluxo" : "Novo Fluxo de Aprovação"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {isEditing ? "Editar Fluxo" : "Novo Fluxo de Aprovação"}
+            {isLegadoDiarias && (
+              <Badge variant="outline" className="text-[11px]">
+                Fluxo legado — Diárias
+              </Badge>
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -181,7 +282,7 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
               <Input
                 value={form.nome}
                 onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                placeholder="Ex: Fluxo Padrão de Diárias"
+                placeholder="Ex: Equipamentos — Engenheiro da Obra"
               />
             </div>
             <div className="flex items-center gap-2 pt-6">
@@ -202,6 +303,11 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
               rows={2}
             />
           </div>
+
+          <Separator />
+
+          {/* Aplicação por processo (motor corporativo) */}
+          <AplicacaoFluxoSection value={aplicacao} onChange={setAplicacao} fluxoId={fluxo?.id} />
 
           <Separator />
 
@@ -242,12 +348,8 @@ export default function FluxoEditor({ open, onClose, fluxo }: FluxoEditorProps) 
 
           <Separator />
 
-          {/* Vinculações */}
-          <VinculacaoCCSection
-            selectedCCIds={ccIds}
-            onChange={setCCIds}
-            fluxoId={fluxo?.id}
-          />
+          {/* Vinculações legadas (Diárias) */}
+          <VinculacaoCCSection selectedCCIds={ccIds} onChange={setCCIds} fluxoId={fluxo?.id} />
 
           <Separator />
 

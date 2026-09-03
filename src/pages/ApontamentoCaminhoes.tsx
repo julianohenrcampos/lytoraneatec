@@ -35,13 +35,15 @@ const ApontamentoCaminhoes: React.FC = () => {
     operadoresDropdown,
     currentUser,
     isFormModalOpen,
-    setIsFormModalOpen,
     isDetailsModalOpen,
     setIsDetailsModalOpen,
     isDeleteModalOpen,
     setIsDeleteModalOpen,
     currentApontamento,
+    formMode,
     handleOpenFormModal,
+    handleOpenFinalizarModal,
+    handleCloseFormModal,
     handleOpenDetailsModal,
     handleOpenDeleteModal,
     handleCreateOrUpdate,
@@ -50,12 +52,18 @@ const ApontamentoCaminhoes: React.FC = () => {
     handleClearFilters,
     handleExportToExcel,
     handleGetUltimoHorimetro,
-    handleUploadFoto,
   } = useApontamentoCaminhoes();
-  const centrosCustoOptions = centrosCusto.map(centro => ({
-    id: centro.id,
-    label: centro.codigo_centro_custo
-  }));
+  const centrosCustoOptions = centrosCusto.map((centro) => {
+    const codigo = centro.codigo_centro_custo || "";
+    const nome = centro.nome_centro_custo || "";
+    const label = codigo && nome ? `${codigo} - ${nome}` : codigo || nome;
+    return {
+      id: centro.id,
+      label,
+      searchText: `${codigo} ${nome}`.trim(),
+    };
+  });
+
 
   const guardedDelete = async () => {
     if (!canDeleteApontamento) {
@@ -84,21 +92,19 @@ const ApontamentoCaminhoes: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-          <div className="flex space-x-2 w-full sm:w-auto">
-            <Button 
-              onClick={() => handleOpenFormModal()}
-              className="flex-1 sm:flex-none"
-            >
+        <div className="flex justify-end mb-6">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => handleOpenFormModal()} className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-2" />
               Novo Apontamento
             </Button>
-            
+
             {!isMobile && (
-              <Button 
+              <Button
                 onClick={guardedExport}
                 variant="outline"
                 disabled={!canExportApontamento}
+                className="whitespace-nowrap"
               >
                 <FileDown className="h-4 w-4 mr-2" />
                 Exportar
@@ -121,6 +127,7 @@ const ApontamentoCaminhoes: React.FC = () => {
           onView={handleOpenDetailsModal}
           onEdit={handleOpenFormModal}
           onDelete={handleOpenDeleteModal}
+          onFinalizar={handleOpenFinalizarModal}
           isLoading={isLoading}
           canDelete={canDeleteApontamento}
         />
@@ -143,7 +150,8 @@ const ApontamentoCaminhoes: React.FC = () => {
 
       <ApontamentoCaminhoesForm
         isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
+        onClose={handleCloseFormModal}
+        onCloseAfterSuccess={handleCloseFormModal}
         onSubmit={handleCreateOrUpdate}
         currentApontamento={currentApontamento}
         veiculosOptions={veiculosDropdown}
@@ -152,8 +160,14 @@ const ApontamentoCaminhoes: React.FC = () => {
         isLoading={isLoading}
         currentUser={currentUser}
         getUltimoHorimetro={handleGetUltimoHorimetro}
-        uploadFoto={handleUploadFoto}
+        mode={formMode}
+        onFinalizarAberto={(apontamento) => {
+          handleCloseFormModal();
+          handleOpenFinalizarModal(apontamento as any);
+        }}
+
       />
+
 
       <ApontamentoCaminhoesDetailsModal
         isOpen={isDetailsModalOpen}

@@ -329,6 +329,35 @@ const EditarAtividadeDialog: React.FC<Props> = ({
               )}
             </div>
 
+            <div className="md:col-span-2">
+              <Label
+                htmlFor="unidade"
+                title="Unidade de medida da atividade. Usada em apontamento, Diário de Obra e KPI de produtividade."
+              >
+                Unidade de medida{" "}
+                {(form.watch("quantidade_prevista") != null &&
+                  form.watch("quantidade_prevista") !== ("" as unknown as number)) ||
+                (form.watch("producao_prevista") != null &&
+                  form.watch("producao_prevista") !== ("" as unknown as number))
+                  ? "*"
+                  : ""}
+              </Label>
+              <Input
+                id="unidade"
+                placeholder="ex.: m, m², m³, un, t"
+                {...form.register("unidade")}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Usada em apontamento, Diário de Obra e KPI de produtividade.
+              </p>
+              {errors.unidade && (
+                <p className="text-xs text-destructive mt-1">
+                  {errors.unidade.message as string}
+                </p>
+              )}
+            </div>
+
+
             <div>
               <Label>Prioridade</Label>
               <Select
@@ -407,15 +436,6 @@ const EditarAtividadeDialog: React.FC<Props> = ({
                   <p className="text-xs text-muted-foreground mt-1">
                     Estrutural, importado do cronograma. Não editável.
                   </p>
-                </div>
-                <div>
-                  <Label
-                    htmlFor="unidade"
-                    title="Unidade de medida da atividade. Vem do MS Project quando disponível."
-                  >
-                    Unidade de medida (ex.: m, m², un)
-                  </Label>
-                  <Input id="unidade" {...form.register("unidade")} />
                 </div>
                 <div>
                   <Label

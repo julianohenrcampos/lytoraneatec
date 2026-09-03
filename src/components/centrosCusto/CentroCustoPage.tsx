@@ -1,6 +1,7 @@
 
 import React from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { useCentroCustoActions } from "@/hooks/useCentroCustoActions";
 import { usePermission } from "@/hooks/usePermission";
@@ -42,6 +43,8 @@ const CentroCustoPage: React.FC = () => {
     refetch,
     exportToExcel,
   } = useCentroCustoActions();
+
+  const queryClient = useQueryClient();
 
   const isMobile = useIsMobile();
   const isSmallScreen = useIsSmallScreen();
@@ -96,7 +99,10 @@ const CentroCustoPage: React.FC = () => {
       <CentroCustoFormModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
-        onSuccess={() => refetch()}
+        onSuccess={() => {
+          void refetch();
+          void queryClient.invalidateQueries({ queryKey: ["planejamento-scope-cc"] });
+        }}
         centroCusto={currentCentroCusto || undefined}
       />
 
@@ -109,7 +115,10 @@ const CentroCustoPage: React.FC = () => {
       <ImportCentrosCustoModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onSuccess={() => refetch()}
+        onSuccess={() => {
+          void refetch();
+          void queryClient.invalidateQueries({ queryKey: ["planejamento-scope-cc"] });
+        }}
       />
 
       <DeleteCentroCustoDialog

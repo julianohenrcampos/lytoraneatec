@@ -14,7 +14,7 @@ import {
 import { CampoEquipeList } from "@/components/ordem-diaria-campo/CampoEquipeList";
 import { CampoRecursoList } from "@/components/ordem-diaria-campo/CampoRecursoList";
 import { CampoPendenciasList } from "@/components/ordem-diaria-campo/CampoPendenciasList";
-import { CampoApontamentoPlaceholder } from "@/components/ordem-diaria-campo/CampoApontamentoPlaceholder";
+import { CampoApontamentoBloco } from "@/components/ordem-diaria-campo/CampoApontamentoBloco";
 import { formatBrazilianDateForDisplay } from "@/utils/timezoneUtils";
 
 export default function OrdemDiariaCampoDetalhe() {
@@ -208,11 +208,11 @@ export default function OrdemDiariaCampoDetalhe() {
           <Card className="p-3 text-xs text-muted-foreground space-y-1.5">
             <p>• Confirme equipe, equipamentos e materiais no campo.</p>
             <p>• Verifique condições de segurança antes de iniciar.</p>
-            <p>• Use o apontamento (em breve) para registrar produção real.</p>
+            <p>• Use "Iniciar apontamento" para registrar a produção real.</p>
           </Card>
         </section>
 
-        <CampoApontamentoPlaceholder />
+        <CampoApontamentoBloco item={item} />
       </div>
     </MainLayout>
   );

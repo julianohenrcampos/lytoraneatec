@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +12,19 @@ import { SolicitacaoItemInsert, TipoItem, RegimeTrabalho, REGIME_LABELS } from "
 import { getSubcategoriasDropdown, UNIDADES_CAPACIDADE, buildVariacaoLabel } from "@/services/catalogoVariacoesService";
 import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
+import { filtrarSubcategoriasPorTipo, pertenceAoTipo } from "@/utils/solicitacoesEquipamento/filtrarSubcategoriasPorTipo";
+
 
 interface Props {
   onAdd: (item: SolicitacaoItemInsert & { _displayName?: string }) => void;
   onCancel: () => void;
   editingItem?: (SolicitacaoItemInsert & { _displayName?: string }) | null;
+  initialSubcategoriaId?: string | null;
+  categoriaMatch?: string[];
+  categoriaLabel?: string | null;
 }
+
+const TERMOS_VEICULO = ["caminhao", "caminhoes", "veiculo", "veiculos", "carro", "onibus", "van", "pickup"];
 
 const EMPTY: SolicitacaoItemInsert & { _displayName?: string } = {
   tipo_item: "EQUIPAMENTO",
@@ -37,35 +44,102 @@ const EMPTY: SolicitacaoItemInsert & { _displayName?: string } = {
   _displayName: "",
 };
 
-const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem }) => {
-  const [item, setItem] = useState<SolicitacaoItemInsert & { _displayName?: string }>(
-    editingItem || { ...EMPTY }
-  );
+const norm = (s: string | null | undefined) =>
+  (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+function inferTipoFromTexto(txt: string): TipoItem {
+  const n = norm(txt);
+  return TERMOS_VEICULO.some((t) => n.includes(t)) ? "VEICULO" : "EQUIPAMENTO";
+}
+
+function inferTipoFromCategoria(label?: string | null, match?: string[]): TipoItem {
+  const txt = [label, ...(match || [])].filter(Boolean).join(" ");
+  return txt.trim() ? inferTipoFromTexto(txt) : "EQUIPAMENTO";
+}
+
+const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem, initialSubcategoriaId, categoriaMatch, categoriaLabel }) => {
+  const [item, setItem] = useState<SolicitacaoItemInsert & { _displayName?: string }>(() => {
+    if (editingItem) return editingItem;
+    const hasFiltro = !!categoriaLabel || (categoriaMatch?.length ?? 0) > 0;
+    return {
+      ...EMPTY,
+      tipo_item: hasFiltro ? inferTipoFromCategoria(categoriaLabel, categoriaMatch) : "EQUIPAMENTO",
+      subcategoria_id: initialSubcategoriaId ?? null,
+      item_nao_catalogado: false,
+    };
+  });
+
+  const prevSubcatRef = useRef<string | null>(item.subcategoria_id ?? null);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const { data: subcategorias = [] } = useQuery({ queryKey: ["subcategorias-dd"], queryFn: getSubcategoriasDropdown });
 
-  const subcategoriaOptions = useMemo(() => subcategorias.map((s: any) => ({ value: s.id, label: s.nome_subcategoria })), [subcategorias]);
+  const subcategoriaOptions = useMemo(() => {
+    const base = subcategorias.map((s: any) => ({
+      value: s.id,
+      label: s.nome_subcategoria,
+      categoriaNome: s.categoria_nome ?? s.categoria?.nome_categoria ?? null,
+    }));
+    return filtrarSubcategoriasPorTipo(base, item.tipo_item as TipoItem, categoriaMatch);
+  }, [subcategorias, categoriaMatch, item.tipo_item]);
+
+  // Ao mudar subcategoria em item novo, inferir tipo_item pelo nome da subcategoria.
+  useEffect(() => {
+    if (editingItem) return;
+    const cur = item.subcategoria_id ?? null;
+    if (cur === prevSubcatRef.current) return;
+    prevSubcatRef.current = cur;
+    if (!cur) return;
+    const nome = subcategorias.find((s: any) => s.id === cur)?.nome_subcategoria;
+    if (!nome) return;
+    const inferido = inferTipoFromTexto(nome);
+    setItem((prev) => (prev.tipo_item === inferido ? prev : { ...prev, tipo_item: inferido }));
+  }, [item.subcategoria_id, subcategorias, editingItem]);
 
   const update = (key: string, value: any) => {
     setItem((prev) => ({ ...prev, [key]: value }));
     setErrors((prev) => ({ ...prev, [key]: "" }));
   };
 
+  /** Troca manual do tipo: limpa subcategoria incoerente com o novo tipo. */
+  const handleTipoChange = (novoTipo: TipoItem) => {
+    setItem((prev) => {
+      const atual = subcategorias.find((s: any) => s.id === prev.subcategoria_id);
+      const catNome = atual?.categoria_nome ?? atual?.categoria?.nome_categoria ?? null;
+      const manterSubcat = !prev.subcategoria_id || pertenceAoTipo(catNome, novoTipo);
+      if (manterSubcat) return { ...prev, tipo_item: novoTipo };
+      prevSubcatRef.current = null;
+      return {
+        ...prev,
+        tipo_item: novoTipo,
+        subcategoria_id: null,
+        capacidade_valor: null,
+        capacidade_unidade: null,
+      };
+    });
+    setErrors({});
+  };
+
+
   const subcategoriaNome = subcategorias.find((s: any) => s.id === item.subcategoria_id)?.nome_subcategoria;
   const previewLabel = !item.item_nao_catalogado && item.subcategoria_id
     ? buildVariacaoLabel(subcategoriaNome, item.capacidade_valor, item.capacidade_unidade)
     : null;
 
+  const hasMinInfo = (): boolean => {
+    const capOk = item.capacidade_valor != null
+      || !!(item.capacidade_unidade && item.capacidade_unidade.trim())
+      || !!(item.capacidade_descricao && item.capacidade_descricao.trim());
+    const temSubcatCap = !!item.subcategoria_id && capOk;
+    const temDescricao = !!(item.descricao_livre && item.descricao_livre.trim());
+    return temSubcatCap || temDescricao;
+  };
+
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!item.item_nao_catalogado) {
-      if (!item.subcategoria_id) {
-        e.subcategoria = "Selecione a subcategoria";
-      }
-    }
-    if (item.item_nao_catalogado && (!item.descricao_livre || item.descricao_livre.trim() === "")) {
-      e.descricao_livre = "Descrição é obrigatória";
+    if (!item.catalogo_equipamento_id && !hasMinInfo()) {
+      e.item = "Selecione a subcategoria e a capacidade, ou informe uma descrição para item não cadastrado.";
     }
     if (item.quantidade < 1) e.quantidade = "Mínimo 1";
     if (item.regime_trabalho === "PERSONALIZADO" && !item.regime_personalizado?.trim()) {
@@ -77,12 +151,47 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem }) =
 
   const handleSubmit = () => {
     if (!validate()) return;
-    // Build display name
-    const displayName = item.item_nao_catalogado
-      ? item.descricao_livre || "Item não catalogado"
-      : previewLabel || "Equipamento";
-    onAdd({ ...item, _displayName: displayName });
+
+    const subcatNome = subcategoriaNome || null;
+    const capText = item.capacidade_valor != null
+      ? `${item.capacidade_valor}${item.capacidade_unidade ? ` ${item.capacidade_unidade}` : ""}`
+      : (item.capacidade_descricao ? item.capacidade_descricao.trim() : null);
+
+    // Auto-normalização: sem catálogo real → item_nao_catalogado=true, preservando subcat/capacidade.
+    let normalized: SolicitacaoItemInsert & { _displayName?: string } = { ...item };
+    if (!normalized.catalogo_equipamento_id) {
+      const temDescricaoLivre = !!(normalized.descricao_livre && normalized.descricao_livre.trim());
+      const temSubcatCap = !!(subcatNome && capText);
+
+      // Defesa em profundidade: só gera descricao_livre se houver info suficiente.
+      if (!temDescricaoLivre && !temSubcatCap) {
+        setErrors({ item: "Selecione a subcategoria e a capacidade, ou informe uma descrição para item não cadastrado." });
+        return;
+      }
+
+      const descricaoFinal = temDescricaoLivre
+        ? (normalized.descricao_livre as string).trim().toUpperCase()
+        : `${subcatNome} — ${capText}`.toUpperCase();
+
+      normalized = {
+        ...normalized,
+        item_nao_catalogado: true,
+        catalogo_equipamento_id: null,
+        descricao_livre: descricaoFinal,
+        capacidade_descricao: (normalized.capacidade_descricao && normalized.capacidade_descricao.trim())
+          ? normalized.capacidade_descricao
+          : (capText || null),
+      };
+    }
+
+    const displayNameBase = normalized.descricao_livre
+      || (subcatNome && capText ? `${subcatNome} — ${capText}` : subcatNome)
+      || previewLabel
+      || "Item não informado";
+
+    onAdd({ ...normalized, _displayName: displayNameBase });
   };
+
 
   return (
     <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
@@ -91,7 +200,7 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem }) =
         <Label className="font-medium">Tipo do Item</Label>
         <RadioGroup
           value={item.tipo_item}
-          onValueChange={(v) => update("tipo_item", v as TipoItem)}
+          onValueChange={(v) => handleTipoChange(v as TipoItem)}
           className="flex gap-4 mt-1"
         >
           <div className="flex items-center gap-2">
@@ -285,6 +394,14 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem }) =
         />
       </div>
 
+      {/* Erro global */}
+      {errors.item && (
+        <div className="flex items-start gap-2 p-2 rounded bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+          <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+          <span>{errors.item}</span>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" size="sm" onClick={onCancel}>Cancelar</Button>
@@ -292,6 +409,7 @@ const ItemBuilderSubForm: React.FC<Props> = ({ onAdd, onCancel, editingItem }) =
           {editingItem ? "Atualizar Item" : "Adicionar Item"}
         </Button>
       </div>
+
     </div>
   );
 };

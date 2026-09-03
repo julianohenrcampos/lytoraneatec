@@ -182,6 +182,18 @@ export const agendamentoExamesService = {
   async update(id: string, formData: Partial<AgendamentoExameFormData>): Promise<AgendamentoExame> {
     const sanitizedData = sanitizeFormData(formData);
 
+    console.debug('[SSO_AGENDAMENTO_DIAG][UPDATE_AGENDAMENTO]', {
+      id,
+      campos: Object.keys(sanitizedData ?? {}),
+      status: (sanitizedData as any)?.status,
+      status_carteira: (sanitizedData as any)?.status_carteira,
+      centro_custo_id: (sanitizedData as any)?.centro_custo_id,
+      empresa_id: (sanitizedData as any)?.empresa_id,
+      funcao_id: (sanitizedData as any)?.funcao_id,
+      local_atendimento_id: (sanitizedData as any)?.local_atendimento_id,
+      tipo_exame: (sanitizedData as any)?.tipo_exame,
+    });
+
     const { data, error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
       .update(sanitizedData)
@@ -193,7 +205,15 @@ export const agendamentoExamesService = {
       `)
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SSO_AGENDAMENTO_DIAG][UPDATE_AGENDAMENTO_ERROR]', {
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      });
+      throw error;
+    }
     return data;
   },
 
@@ -254,11 +274,41 @@ export const agendamentoExamesService = {
   },
 
   async updateBeneficio(id: string, field: string, value: string | null): Promise<void> {
-    const { error } = await (supabase
+    console.log('[SSO_BENEFICIO_UPDATE]', {
+      agendamentoId: id,
+      campo: field,
+      tabela: 'bd_agendamentos_exames',
+    });
+
+    const { data, error } = await (supabase
       .from('bd_agendamentos_exames' as any) as any)
       .update({ [field]: value })
-      .eq('id', id);
+      .eq('id', id)
+      .select('id');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SSO_BENEFICIO_UPDATE_ERROR]', {
+        agendamentoId: id,
+        campo: field,
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      });
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      const rlsError = new Error(
+        'Sem permissão para atualizar este benefício (RLS bloqueou a alteração).'
+      );
+      console.error('[SSO_BENEFICIO_UPDATE_ERROR]', {
+        agendamentoId: id,
+        campo: field,
+        code: 'RLS_ZERO_ROWS',
+        message: rlsError.message,
+      });
+      throw rlsError;
+    }
   }
 };

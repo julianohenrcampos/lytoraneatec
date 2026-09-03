@@ -1,11 +1,13 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VeiculoFilterParams } from "@/types/veiculo";
-import { FilterX, Search, Filter } from "lucide-react";
+import { FilterX, Search, Filter, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeSearchTerm } from "@/lib/veiculos/frotaSearch";
+import { cn } from "@/lib/utils";
 
 interface VeiculoFiltersProps {
   filters: VeiculoFilterParams;
@@ -14,6 +16,7 @@ interface VeiculoFiltersProps {
   isLoading?: boolean;
   totalVeiculos?: number;
   categorias?: { id: string; nome_categoria: string }[];
+  departamentos?: { id: string; nome_departamento: string }[];
 }
 
 interface DropdownOption {
@@ -30,15 +33,39 @@ const SearchDropdown: React.FC<{
 }> = ({ label, placeholder, options, value, onChange }) => {
   const [input, setInput] = useState(value || "");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
+  // Mantém o rótulo selecionado visível (não apaga o campo ao escolher um item)
   useEffect(() => {
-    setInput(value || "");
-  }, [value]);
+    if (!isEditing) setInput(value || "");
+  }, [value, isEditing]);
 
-  const filtered = options.filter((o) =>
-    o.label.toLowerCase().includes(input.toLowerCase())
-  );
+  // Fecha por clique fora real (evita que o onBlur engula o clique na opção)
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+        setIsEditing(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showDropdown]);
+
+  const filtered = useMemo(() => {
+    const term = normalizeSearchTerm(input);
+    if (!term) return options;
+    return options.filter((o) => normalizeSearchTerm(o.label).includes(term));
+  }, [options, input]);
+
+  const selectOption = (opt: DropdownOption) => {
+    setIsEditing(false);
+    setInput(opt.label);
+    onChange(opt.value);
+    setShowDropdown(false);
+  };
 
   return (
     <div className="space-y-1.5 relative" ref={ref}>
@@ -50,28 +77,44 @@ const SearchDropdown: React.FC<{
           className="pl-8"
           value={input}
           onChange={(e) => {
+            setIsEditing(true);
             setInput(e.target.value);
             onChange(e.target.value);
             setShowDropdown(true);
           }}
           onFocus={() => setShowDropdown(true)}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && filtered.length > 0) {
+              e.preventDefault();
+              selectOption(filtered[0]);
+            }
+            if (e.key === "Escape") {
+              setShowDropdown(false);
+              setIsEditing(false);
+            }
+          }}
         />
         {showDropdown && filtered.length > 0 && (
-          <ul className="absolute z-10 w-full bg-background border border-border rounded-md mt-1 max-h-48 overflow-y-auto shadow">
-            {filtered.slice(0, 50).map((opt, i) => (
-              <li
-                key={i}
-                className="px-3 py-2 hover:bg-muted cursor-pointer text-sm"
-                onMouseDown={() => {
-                  setInput(opt.label);
-                  onChange(opt.value);
-                  setShowDropdown(false);
-                }}
-              >
-                {opt.label}
-              </li>
-            ))}
+          <ul className="absolute z-50 w-full bg-background border border-border rounded-md mt-1 max-h-48 overflow-y-auto shadow">
+            {filtered.slice(0, 50).map((opt, i) => {
+              const isSelected = normalizeSearchTerm(opt.label) === normalizeSearchTerm(value);
+              return (
+                <li
+                  key={`${opt.value}-${i}`}
+                  className={cn(
+                    "px-3 py-2 hover:bg-muted cursor-pointer text-sm flex items-center justify-between gap-2",
+                    isSelected && "bg-muted font-medium"
+                  )}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    selectOption(opt);
+                  }}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -79,12 +122,14 @@ const SearchDropdown: React.FC<{
   );
 };
 
+
 const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
   filters,
   onFilterChange,
   onResetFilters,
   isLoading = false,
   totalVeiculos = 0,
+  departamentos = [],
 }) => {
   const [subcategorias, setSubcategorias] = useState<DropdownOption[]>([]);
   const [frotas, setFrotas] = useState<DropdownOption[]>([]);
@@ -146,6 +191,12 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
     return found?.label || "";
   };
 
+  const getDepartamentoDisplay = () => {
+    if (!filters.departamento_id) return "";
+    const found = departamentos.find((d) => d.id === filters.departamento_id);
+    return found?.nome_departamento || "";
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -195,6 +246,16 @@ const VeiculoFilters: React.FC<VeiculoFiltersProps> = ({
             onChange={(val) => {
               const match = empresas.find((e) => e.value === val || e.label === val);
               onFilterChange("empresa_id", match ? match.value : "");
+            }}
+          />
+          <SearchDropdown
+            label="Departamento"
+            placeholder="Buscar departamento..."
+            options={departamentos.map((d) => ({ label: d.nome_departamento, value: d.id }))}
+            value={getDepartamentoDisplay()}
+            onChange={(val) => {
+              const match = departamentos.find((d) => d.id === val || d.nome_departamento === val);
+              onFilterChange("departamento_id", match ? match.id : "");
             }}
           />
           <SearchDropdown

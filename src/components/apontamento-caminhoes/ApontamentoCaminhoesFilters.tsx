@@ -4,18 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { DatePickerWithRange } from "@/components/ui/date-picker-range";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
 import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
-import { FilterX, Search, SlidersHorizontal } from "lucide-react";
+import { FilterX, SlidersHorizontal } from "lucide-react";
 import { useIsSmallScreen, useIsMobile } from "@/hooks/use-mobile";
 import ApontamentoCaminhoesFilterDrawer from "./ApontamentoCaminhoesFilterDrawer";
 
@@ -23,9 +16,9 @@ interface ApontamentoCaminhoesFiltersProps {
   onApplyFilters: (filters: ApontamentoFilterParams) => void;
   onClearFilters: () => void;
   onExportToExcel?: () => void;
-  veiculosOptions: { id: string; label: string; }[];
-  operadoresOptions?: { id: string; label: string; }[];
-  centrosCustoOptions?: { id: string; label: string; }[];
+  veiculosOptions: { id: string; label: string; searchText?: string }[];
+  operadoresOptions?: { id: string; label: string; searchText?: string }[];
+  centrosCustoOptions?: { id: string; label: string; searchText?: string }[];
   isLoading?: boolean;
 }
 
@@ -134,62 +127,50 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
 
           <div className="space-y-2">
             <Label htmlFor="caminhao" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={caminhaoId} onValueChange={setCaminhaoId}>
-                <SelectTrigger id="caminhao" className="pl-8 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione um veículo" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {veiculosOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...veiculosOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={caminhaoId}
+              onChange={setCaminhaoId}
+              placeholder="Selecione um veículo"
+              searchPlaceholder="Buscar veículo..."
+              emptyText="Nenhum veículo encontrado"
+              className="border border-slate-300 bg-white"
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="operador" className="font-medium text-gray-700">Operador</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={operadorId} onValueChange={setOperadorId}>
-                <SelectTrigger id="operador" className="pl-8 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione um operador" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {operadoresOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...operadoresOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={operadorId}
+              onChange={setOperadorId}
+              placeholder="Selecione um operador"
+              searchPlaceholder="Buscar operador..."
+              emptyText="Nenhum operador encontrado"
+              className="border border-slate-300 bg-white"
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="centro-custo" className="font-medium text-gray-700">Centro de Custo</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                <SelectTrigger id="centro-custo" className="pl-8 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione um centro" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {centrosCustoOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...centrosCustoOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={centroCustoId}
+              onChange={setCentroCustoId}
+              placeholder="Selecione um centro"
+              searchPlaceholder="Buscar centro de custo..."
+              emptyText="Nenhum centro de custo encontrado"
+              className="border border-slate-300 bg-white"
+            />
           </div>
         </div>
 
@@ -206,7 +187,7 @@ const ApontamentoCaminhoesFilters: React.FC<ApontamentoCaminhoesFiltersProps> = 
         </div>
         
         <div className="mt-2 text-center text-sm text-slate-500 italic">
-          Utilize os filtros acima para refinar sua busca
+          {"\n"}
         </div>
       </CardContent>
     </Card>

@@ -26,7 +26,6 @@ const Step3DadosTecnicos: React.FC<Props> = ({ form }) => {
         </h3>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {/* Fabricante */}
           <FormField control={form.control} name="fabricante_id" render={({ field }) => (
             <FormItem>
               <FormLabel>Fabricante</FormLabel>
@@ -44,16 +43,21 @@ const Step3DadosTecnicos: React.FC<Props> = ({ form }) => {
             </FormItem>
           )} />
 
-          {/* Modelo - texto livre */}
           <FormField control={form.control} name="modelo" render={({ field }) => (
             <FormItem>
               <FormLabel>Modelo</FormLabel>
               <FormControl>
-                <Input placeholder="Digite o modelo" {...field} value={field.value || ""} />
+                <Input
+                  placeholder="Ex: FH 540, Actros 2651, CS54B..."
+                  maxLength={120}
+                  {...field}
+                  value={field.value ?? ""}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )} />
+
 
           {/* Ano de Fabricação */}
           <FormField control={form.control} name="ano_fabricacao" render={({ field }) => (

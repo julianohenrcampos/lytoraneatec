@@ -15,7 +15,6 @@ import {
   Eye,
   Search,
   X,
-  Printer,
 } from "lucide-react";
 
 import MainLayout from "@/components/layout/MainLayout";
@@ -50,8 +49,6 @@ import { Combobox } from "@/components/ui/combobox";
 import { PeriodoPicker } from "@/components/ui/periodo-picker";
 import type { DateRange } from "react-day-picker";
 import { RESTRICTED_CC_CODE } from "@/utils/centroCustoRestrictions";
-import { generateFolhaPontoPDF } from "@/services/pdfService";
-import type { FolhaPontoFuncionario } from "@/components/diarias/pdf/FolhaPontoPDF";
 
 
 export default function DiariasApontamentoCampo() {
@@ -166,7 +163,6 @@ export default function DiariasApontamentoCampo() {
   const [selectedApontamento, setSelectedApontamento] = useState<DiariaApontamento | null>(null);
   const [modalReadOnly, setModalReadOnly] = useState(false);
   const [modalInitialDate, setModalInitialDate] = useState<string | undefined>(undefined);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Mutation toggle edição
   const toggleEdicao = useToggleEdicaoLiberada();
@@ -373,205 +369,6 @@ export default function DiariasApontamentoCampo() {
     queryClient.invalidateQueries({ queryKey: ['diaria-status'] });
   };
 
-  // Folha de Ponto PDF - habilitado quando CC filtrado e há apontamentos com período válido
-  const canPrintFolhaPonto = useMemo(() => {
-    if (!centroCustoFilter) return false;
-    return sortedApontamentos.some((a: any) => {
-      const sol = a.bd_diaria_solicitacoes;
-      return sol?.data_inicio && sol?.data_fim;
-    });
-  }, [centroCustoFilter, sortedApontamentos]);
-
-  const handlePrintFolhaPonto = useCallback(async () => {
-    if (!centroCustoFilter || isGeneratingPDF) return;
-    setIsGeneratingPDF(true);
-
-    try {
-      // Get filtered apontamentos for selected CC
-      const apontamentosCC = sortedApontamentos.filter((a: any) =>
-        a.bd_diaria_solicitacoes?.centro_custo_id === centroCustoFilter
-      );
-
-      if (apontamentosCC.length === 0) {
-        toast.error("Nenhum apontamento encontrado para o centro de custo selecionado.");
-        return;
-      }
-
-      // Collect all solicitacao IDs and date ranges
-      const solicitacaoData: { id: string; numero: string; dataInicio: string; dataFim: string; convocados: ConvocadoLote[] }[] = [];
-      for (const apt of apontamentosCC) {
-        const sol = (apt as any).bd_diaria_solicitacoes;
-        if (!sol?.data_inicio || !sol?.data_fim) continue;
-        solicitacaoData.push({
-          id: sol.id,
-          numero: sol.numero_solicitacao || '',
-          dataInicio: sol.data_inicio,
-          dataFim: sol.data_fim,
-          convocados: parseConvocados(sol.convocados_pre, { inicio: sol.data_inicio, fim: sol.data_fim }),
-        });
-      }
-
-      if (solicitacaoData.length === 0) {
-        toast.error("Nenhuma solicitação válida encontrada.");
-        return;
-      }
-
-      // Use first solicitação for header info (most common case)
-      const firstSol = solicitacaoData[0];
-
-      // Generate date range (weekdays always, weekends only if worked)
-      const allDates = eachDayOfInterval({
-        start: parseBrazilianDate(firstSol.dataInicio),
-        end: parseBrazilianDate(firstSol.dataFim),
-      });
-
-      // Fetch presences for all solicitações
-      const solIds = solicitacaoData.map(s => s.id);
-      const { data: presencas } = await supabase
-        .from('bd_diaria_presencas')
-        .select('funcionario_id, data, hora_entrada, hora_saida, presente')
-        .in('solicitacao_id', solIds);
-
-      // Build presence map: funcId+data => {hora_entrada, hora_saida}
-      const presencaMap = new Map<string, { hora_entrada: string; hora_saida: string }>();
-      (presencas || []).forEach((p: any) => {
-        if (p.presente) {
-          presencaMap.set(`${p.funcionario_id}_${p.data}`, {
-            hora_entrada: p.hora_entrada || '',
-            hora_saida: p.hora_saida || '',
-          });
-        }
-      });
-
-      // Collect unique employees from all solicitações
-      const funcIds = new Set<string>();
-      const convocadosMetaMap = new Map<string, { nome_funcionario: string; nome_funcao: string }>();
-      solicitacaoData.forEach(s => s.convocados.forEach(c => {
-        funcIds.add(c.funcionario_id);
-        if (c.nome_funcionario || c.nome_funcao) {
-          convocadosMetaMap.set(c.funcionario_id, {
-            nome_funcionario: c.nome_funcionario || '',
-            nome_funcao: c.nome_funcao || '',
-          });
-        }
-      }));
-
-      // Fallback: if no IDs from convocados_pre, use presencas
-      if (funcIds.size === 0 && presencas?.length) {
-        presencas.forEach((p: any) => {
-          if (p.funcionario_id) funcIds.add(p.funcionario_id);
-        });
-      }
-
-      if (funcIds.size === 0) {
-        toast.error("Nenhum registro de funcionário encontrado no período/solicitação.");
-        return;
-      }
-
-      // Fetch employee details - handle RLS partial results gracefully
-      const { data: funcionariosDB, error: funcError } = await supabase
-        .from('bd_funcionarios')
-        .select('id, nome_completo, matricula, cpf, data_admissao, funcao_id, centro_custo_id, banco, agencia, conta_corrente, bd_funcoes(nome_funcao), bd_centros_custo(codigo_centro_custo, nome_centro_custo)')
-        .in('id', Array.from(funcIds));
-
-      if (funcError) {
-        console.warn('Erro ao buscar bd_funcionarios (RLS?):', funcError.message);
-      }
-
-      const funcMap = new Map((funcionariosDB || []).map((f: any) => [f.id, f]));
-      console.log(`[FolhaPonto] funcIds: ${funcIds.size}, retornados bd_funcionarios: ${funcMap.size}, convocadosMeta: ${convocadosMetaMap.size}`);
-
-      // Get CC info for local_trabalho
-      const ccCode = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.codigo_centro_custo || '';
-      const ccNome = (apontamentosCC[0] as any)?.bd_diaria_solicitacoes?.bd_centros_custo?.nome_centro_custo || '';
-      const localTrabalho = ccCode ? `${ccCode} - ${ccNome}` : '';
-
-      // Build FolhaPontoFuncionario array - use fallback for missing DB records
-      const funcionariosPDF: FolhaPontoFuncionario[] = [];
-      for (const funcId of funcIds) {
-        const funcDB = funcMap.get(funcId) as any;
-        const meta = convocadosMetaMap.get(funcId);
-
-        // Skip only if we have absolutely no info about this employee
-        const nome = funcDB?.nome_completo || meta?.nome_funcionario || null;
-        if (!nome) continue;
-
-        // Build days list: weekdays always, weekends only if has presence
-        const dias: FolhaPontoFuncionario['dias'] = [];
-        for (const date of allDates) {
-          const dateStr = format(date, 'yyyy-MM-dd');
-          const presKey = `${funcId}_${dateStr}`;
-          const pres = presencaMap.get(presKey);
-
-          if (isWeekend(date)) {
-            if (pres) {
-              dias.push({
-                data: dateStr,
-                hora_entrada: pres.hora_entrada,
-                intervalo_saida: '',
-                intervalo_entrada: '',
-                hora_saida: pres.hora_saida,
-                centro_custo: ccCode,
-              });
-            }
-          } else {
-            dias.push({
-              data: dateStr,
-              hora_entrada: pres?.hora_entrada || '',
-              intervalo_saida: '',
-              intervalo_entrada: '',
-              hora_saida: pres?.hora_saida || '',
-              centro_custo: pres ? ccCode : '',
-            });
-          }
-        }
-
-        const departamento = funcDB?.bd_centros_custo
-          ? `${funcDB.bd_centros_custo.codigo_centro_custo} - ${funcDB.bd_centros_custo.nome_centro_custo}`
-          : '';
-
-        funcionariosPDF.push({
-          nome_completo: nome,
-          matricula: funcDB?.matricula || null,
-          cpf: funcDB?.cpf || '',
-          data_admissao: funcDB?.data_admissao || null,
-          funcao: funcDB?.bd_funcoes?.nome_funcao || meta?.nome_funcao || '-',
-          departamento,
-          banco: funcDB?.banco || null,
-          agencia: funcDB?.agencia || null,
-          conta_corrente: funcDB?.conta_corrente || null,
-          dias,
-        });
-      }
-
-      // Sort by name
-      funcionariosPDF.sort((a, b) => a.nome_completo.localeCompare(b.nome_completo));
-
-      if (funcionariosPDF.length === 0) {
-        toast.error("Nenhum funcionário encontrado para gerar a folha de ponto.");
-        return;
-      }
-
-      // Warn if partial data
-      if (funcMap.size < funcIds.size) {
-        toast.info(`Folha gerada com dados parciais (${funcMap.size}/${funcIds.size} cadastros acessíveis).`);
-      }
-
-      await generateFolhaPontoPDF(
-        firstSol.dataInicio,
-        firstSol.dataFim,
-        funcionariosPDF,
-        `Folha_Ponto_${ccCode}_${firstSol.dataInicio}_${firstSol.dataFim}`
-      );
-
-      toast.success("Folha de ponto gerada com sucesso!");
-    } catch (error) {
-      console.error('Erro ao gerar folha de ponto:', error);
-      toast.error("Erro ao gerar folha de ponto.");
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  }, [centroCustoFilter, sortedApontamentos, centrosCustoOptions, isGeneratingPDF]);
 
   if (isLoadingPermissions || isLoadingScope) {
     return (
@@ -685,20 +482,6 @@ export default function DiariasApontamentoCampo() {
               </div>
             </div>
             <div className="flex justify-end mt-4 gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePrintFolhaPonto}
-                disabled={!canPrintFolhaPonto || isGeneratingPDF}
-                className="flex items-center gap-1.5"
-              >
-                {isGeneratingPDF ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Printer className="h-3.5 w-3.5" />
-                )}
-                Imprimir Folha de Ponto
-              </Button>
               <Button
                 variant="outline"
                 size="sm"

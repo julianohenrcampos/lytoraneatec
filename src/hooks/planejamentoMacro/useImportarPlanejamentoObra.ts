@@ -1,6 +1,6 @@
 // Fase 6F / 6H.1.1 — Hook de importação de planejamento.
 // Cria rascunho + atividades + (se houver aba Alocações) recursos planejados de mão de obra.
-// SuperAdm only. Falha em recursos = importação parcial: atividades permanecem.
+// Autorização feita pela RLS do backend (SuperAdm ou engenharia_planejamento_macro_importar/criar no escopo).
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ import {
   consolidarRecursosNaoMaoObra,
   type AtividadeRef,
 } from "@/lib/planejamentoMacro/importarCronograma/consolidarRecursosNaoMaoObra";
-import { useAuthPermissionsStable } from "@/hooks/useAuthPermissionsStable";
+
 import type {
   AtividadeParaInserir,
   AlocacaoPreview,
@@ -144,11 +144,9 @@ function consolidarAlocacoes(
 
 export function useImportarPlanejamentoObra() {
   const qc = useQueryClient();
-  const { isSuperAdmin } = useAuthPermissionsStable();
 
   return useMutation<ImportarPlanejamentoOutput, Error, ImportarPlanejamentoInput>({
     mutationFn: async ({ centro_custo_id, resultado }) => {
-      if (!isSuperAdmin) throw new SemPermissaoError();
       if (resultado.bloqueado) {
         throw new Error(resultado.motivoBloqueio ?? "Importação bloqueada.");
       }
@@ -452,7 +450,16 @@ export function useImportarPlanejamentoObra() {
     },
     onError: (err, vars) => {
       if (err instanceof SemPermissaoError) {
-        toast.error("Apenas SuperAdm pode importar planejamento nesta fase.");
+        toast.error("Você não possui permissão para importar planejamento nesta obra.");
+        return;
+      }
+      const raw = (err as any)?.message || "";
+      const code = (err as any)?.code || (err as any)?.cause?.code;
+      const isRlsDenied =
+        code === "42501" ||
+        /row-level security|violates row-level security|permission denied|não possui permissão/i.test(raw);
+      if (isRlsDenied) {
+        toast.error("Você não possui permissão para importar planejamento nesta obra.");
         return;
       }
       if (err instanceof RecursosImportacaoParcialError) {
@@ -462,7 +469,7 @@ export function useImportarPlanejamentoObra() {
         toast.error(err.message, { duration: 12000 });
         return;
       }
-      toast.error(err.message || "Erro ao importar planejamento.");
+      toast.error(raw || "Erro ao importar planejamento.");
     },
   });
 }

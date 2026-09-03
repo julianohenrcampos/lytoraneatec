@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 export const fetchCentrosCusto = async (filters: CentroCustoFilter = {}, isSuperAdmin: boolean = false): Promise<CentroCusto[]> => {
   let query = supabase
     .from("bd_centros_custo")
-    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo), adm_obra_funcionario:bd_funcionarios!adm_obra_funcionario_id(id, nome_completo), departamento:bd_departamentos!departamento_id(id, nome_departamento)");
+    .select("*, adm_sede_funcionario:bd_funcionarios!adm_sede_funcionario_id(id, nome_completo), adm_obra_funcionario:bd_funcionarios!adm_obra_funcionario_id(id, nome_completo), departamento:bd_departamentos!departamento_id(id, nome_departamento), planejador_responsavel:profiles!planejador_responsavel_id(id, nome_completo, email), engenheiro_responsavel:bd_funcionarios!engenheiro_responsavel_id(id, nome_completo)");
   
   // Ocultar DIR001 para não-SuperAdmin
   query = excludeRestrictedCC(query, isSuperAdmin);
@@ -129,6 +129,14 @@ export const createCentroCusto = async (data: CentroCustoFormData): Promise<Cent
   if (data.departamento_id && data.departamento_id !== '__none__') {
     insertData.departamento_id = data.departamento_id;
   }
+  if (data.planejador_responsavel_id && data.planejador_responsavel_id !== '__none__') {
+    insertData.planejador_responsavel_id = data.planejador_responsavel_id;
+  }
+  if (data.engenheiro_responsavel_id && data.engenheiro_responsavel_id !== '__none__') {
+    insertData.engenheiro_responsavel_id = data.engenheiro_responsavel_id;
+  }
+
+
 
   const { data: newData, error } = await supabase
     .from("bd_centros_custo")
@@ -190,6 +198,18 @@ export const updateCentroCusto = async (id: string, data: CentroCustoFormData): 
   } else {
     updateData.departamento_id = null;
   }
+  if (data.planejador_responsavel_id && data.planejador_responsavel_id !== '__none__') {
+    updateData.planejador_responsavel_id = data.planejador_responsavel_id;
+  } else {
+    updateData.planejador_responsavel_id = null;
+  }
+  if (data.engenheiro_responsavel_id && data.engenheiro_responsavel_id !== '__none__') {
+    updateData.engenheiro_responsavel_id = data.engenheiro_responsavel_id;
+  } else {
+    updateData.engenheiro_responsavel_id = null;
+  }
+
+
 
   console.log("[CENTRO_CUSTO_SERVICE][UPDATE_PAYLOAD]", updateData);
 

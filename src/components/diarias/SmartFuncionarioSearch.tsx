@@ -94,7 +94,11 @@ interface SmartFuncionarioSearchProps {
 }
 
 // Status de RH considerados bloqueio real de seleção (não-conflito).
-const STATUS_RH_PERMITIDOS = new Set(["Ativo", "Ativo sem Registro"]);
+const STATUS_RH_PERMITIDOS = new Set(["Ativo", "Ativo sem Registro", "Férias"]);
+const isStatusFerias = (s: string) => {
+  const u = s.trim().toUpperCase();
+  return u === "FÉRIAS" || u === "FERIAS";
+};
 
 export function SmartFuncionarioSearch({
   funcionarios,
@@ -373,6 +377,15 @@ export function SmartFuncionarioSearch({
                             {isStatusBloqueado && (
                               <Badge variant="outline" className="text-[10px] px-1 py-0 border-muted-foreground/40 text-muted-foreground shrink-0">
                                 {statusRaw}
+                              </Badge>
+                            )}
+                            {!isStatusBloqueado && isStatusFerias(statusRaw) && (
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] px-1 py-0 border-amber-500 text-amber-700 shrink-0"
+                                title="Funcionário em Férias — todas as diárias serão calculadas pelo valor de Diária Exclusiva."
+                              >
+                                Férias · Diária Exclusiva
                               </Badge>
                             )}
                           </div>

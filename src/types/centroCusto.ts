@@ -46,6 +46,19 @@ export interface CentroCusto {
   latitude: number | null;
   longitude: number | null;
   geocoding_status: string | null;
+  // Planejador Responsável (profile do usuário)
+  planejador_responsavel_id: string | null;
+  planejador_responsavel?: {
+    id: string;
+    nome_completo: string | null;
+    email: string | null;
+  };
+  // Engenheiro Responsável (funcionário) — recebedor das aprovações de transferência
+  engenheiro_responsavel_id: string | null;
+  engenheiro_responsavel?: {
+    id: string;
+    nome_completo: string;
+  };
 }
 
 export interface CentroCustoFormData {
@@ -70,6 +83,8 @@ export interface CentroCustoFormData {
   latitude?: number;
   longitude?: number;
   geocoding_status?: string;
+  planejador_responsavel_id?: string;
+  engenheiro_responsavel_id?: string;
 }
 
 export interface CentroCustoFilter {

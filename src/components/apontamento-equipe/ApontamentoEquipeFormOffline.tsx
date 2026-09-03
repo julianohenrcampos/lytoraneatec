@@ -74,7 +74,11 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
     loadEquipeMembers,
     loadExistingApontamento,
     apontamentosCarregados,
-    loadingEquipeError
+    loadingEquipeError,
+    liberarColaborador,
+    adicionarAvulso,
+    selecionarTodos,
+    marcarSaidaTodos,
   } = useApontamentoEquipeForm({
     currentApontamento,
     onSubmit: handleFormSubmit, // Pass the wrapper function
@@ -234,6 +238,10 @@ const ApontamentoEquipeFormOffline: React.FC<ApontamentoEquipeFormOfflineProps> 
               avaliacaoStatusMap={avaliacaoStatusMap}
               alertMessage={alertMessage}
               isEditing={isEditing}
+              onLiberar={liberarColaborador}
+              onAdicionarAvulso={adicionarAvulso}
+              onSelecionarTodos={selecionarTodos}
+              onSaidaTodos={marcarSaidaTodos}
             />
 
             <DialogFooter className="sm:justify-between flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">

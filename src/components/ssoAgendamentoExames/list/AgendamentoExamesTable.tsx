@@ -189,9 +189,21 @@ export const AgendamentoExamesTable: React.FC<AgendamentoExamesTableProps> = ({
                   aria-label={`Selecionar ${agendamento.nome_colaborador}`}
                 />
               </TableCell>
-              <TableCell>{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</TableCell>
-              <TableCell className="font-medium max-w-[180px] truncate" title={agendamento.nome_colaborador}>
-                {agendamento.nome_colaborador}
+              <TableCell>
+                <div className="font-semibold">{formatBrazilianDateForDisplay(agendamento.data_agendamento)}</div>
+                {agendamento.criado_em && (
+                  <div className="text-[11px] text-muted-foreground leading-tight">
+                    {new Date(agendamento.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '')}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="max-w-[180px]" title={agendamento.nome_colaborador}>
+                <div className="font-medium truncate">{agendamento.nome_colaborador}</div>
+                {agendamento.profiles?.nome_completo && (
+                  <div className="text-[11px] text-muted-foreground leading-tight truncate">
+                    por {agendamento.profiles.nome_completo.trim().split(/\s+/)[0]}
+                  </div>
+                )}
               </TableCell>
               <TableCell>
                 {agendamento.motivo_contratacao ? (

@@ -12,6 +12,7 @@ import { PageTitleProvider } from "@/contexts/PageTitleContext";
 import SimpleAuthGuard from "@/components/routing/SimpleAuthGuard";
 import SimplePermissionGuard from "@/components/routing/SimplePermissionGuard";
 import SecureRouteGuard from "@/components/routing/SecureRouteGuard";
+import type { Acao } from "@/hooks/usePermission";
 import OrdemDiariaCampoGuard from "@/components/routing/OrdemDiariaCampoGuard";
 import SimpleLogin from "@/pages/SimpleLogin";
 import Portal from "@/pages/Portal";
@@ -47,8 +48,14 @@ const GestaoDisponibilidade = lazy(() => import("@/pages/GestaoDisponibilidade")
 const GestaoPortfolio = lazy(() => import("@/pages/GestaoPortfolio"));
 const LinhasOperacionaisPage = lazy(() => import("@/pages/LinhasOperacionaisPage"));
 const CentralTransporte = lazy(() => import("@/pages/CentralTransporte"));
+const CentralTransporteSolicitacao = lazy(() => import("@/pages/CentralTransporteSolicitacao"));
+const CentralTransporteMovimentacaoNova = lazy(
+  () => import("@/pages/CentralTransporteMovimentacaoNova"),
+);
 const ChecklistSaida = lazy(() => import("@/pages/ChecklistSaida"));
 const Abastecimento = lazy(() => import("@/pages/GestaoAbastecimento"));
+const MapaOperacional = lazy(() => import("@/pages/gestao-maquinas/MapaOperacional"));
+const MinhasMobilizacoes = lazy(() => import("@/pages/MinhasMobilizacoes"));
 
 const TestePonto = lazy(() => import("@/pages/dev/TestePonto"));
 const PwaStatus = lazy(() => import("@/pages/dev/PwaStatus"));
@@ -84,7 +91,10 @@ const DiariasSolicitacoes = lazy(() => import("@/pages/DiariasSolicitacoes"));
 const DiariasRelatorio = lazy(() => import("@/pages/DiariasRelatorio"));
 const DiariasApontamentoCampo = lazy(() => import("@/pages/DiariasApontamentoCampo"));
 const GestaoAprovacoesDiarias = lazy(() => import("@/pages/diarias/GestaoAprovacoesDiarias"));
+const CentralAprovacoes = lazy(() => import("@/pages/central-aprovacoes/CentralAprovacoes"));
+const RedirectGestaoAprovacoesToCentral = lazy(() => import("@/pages/central-aprovacoes/RedirectLegacy"));
 const PontoShadowAuditoria = lazy(() => import("@/pages/diarias/PontoShadowAuditoria"));
+const QualidadeCadastral = lazy(() => import("@/pages/admin/QualidadeCadastral"));
 
 const SSOChecklistList = lazy(() => import("@/pages/SSOChecklistList"));
 const SSODashboard = lazy(() => import("@/pages/SSODashboard"));
@@ -92,12 +102,28 @@ const SSODesviosList = lazy(() => import("@/pages/SSODesviosList"));
 const SSOAgendamentoExames = lazy(() => import("@/pages/SSOAgendamentoExames"));
 const SSOClinicas = lazy(() => import("@/pages/SSOClinicas"));
 const SSOVerAgir = lazy(() => import("@/pages/SSOVerAgir"));
+const AtestadosMedicos = lazy(() => import("@/pages/AtestadosMedicos"));
+const AtestadosMedicosPainel = lazy(() => import("@/pages/sso/AtestadosMedicosPainel"));
 
 const MonitoramentoPNCP = lazy(() => import("@/pages/MonitoramentoPNCP"));
 const ConfiguracoesPNCP = lazy(() => import("@/pages/ConfiguracoesPNCP"));
 const OrgaosPendentes = lazy(() => import("@/pages/OrgaosPendentes"));
 const RelatorioLicitacoes = lazy(() => import("@/pages/RelatorioLicitacoes"));
 const ConfiguracoesMatching = lazy(() => import("@/pages/ConfiguracoesMatching"));
+
+const ChamadosInternosList = lazy(() => import("@/pages/chamados-internos/ChamadosInternosList"));
+const ChamadosInternosAbrir = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAbrir"));
+const ChamadosInternosAtendimento = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAtendimento"));
+const ChamadosInternosAdmin = lazy(() => import("@/pages/chamados-internos/ChamadosInternosAdmin"));
+const ChamadosInternosDashboard = lazy(() => import("@/pages/chamados-internos/ChamadosInternosDashboard"));
+
+
+const ChamadoInternoDetalhe = lazy(() => import("@/pages/chamados-internos/ChamadoInternoDetalhe"));
+
+const BibliotecaPops = lazy(() => import("@/pages/pops/BibliotecaPops"));
+const GestaoPops = lazy(() => import("@/pages/pops/GestaoPops"));
+
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -123,13 +149,30 @@ const Perm = ({ children }: { children: React.ReactNode }) => (
     <SimplePermissionGuard>{children}</SimplePermissionGuard>
   </SimpleAuthGuard>
 );
-const Secure = ({ permission, children }: { permission: string; children: React.ReactNode }) => (
-  <SimpleAuthGuard>
-    <SimplePermissionGuard>
-      <SecureRouteGuard requiredPermission={permission}>{children}</SecureRouteGuard>
-    </SimplePermissionGuard>
-  </SimpleAuthGuard>
-);
+const Secure = ({
+  permission,
+  action,
+  children,
+}: {
+  permission: string;
+  action?: Acao;
+  children: React.ReactNode;
+}) =>
+  action ? (
+    // Rotas com action granular usam apenas o SecureRouteGuard, que conhece
+    // o contrato de capabilities; o SimplePermissionGuard não avalia actions.
+    <SimpleAuthGuard>
+      <SecureRouteGuard requiredPermission={permission} requiredAction={action}>
+        {children}
+      </SecureRouteGuard>
+    </SimpleAuthGuard>
+  ) : (
+    <SimpleAuthGuard>
+      <SimplePermissionGuard>
+        <SecureRouteGuard requiredPermission={permission}>{children}</SecureRouteGuard>
+      </SimplePermissionGuard>
+    </SimpleAuthGuard>
+  );
 
 // Redireciona a rota antiga /gestao-rh/desligamentos para a aba dentro de funcionários,
 // preservando quaisquer query params já presentes (ex.: deep links externos).
@@ -161,6 +204,9 @@ const App = () => {
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/waiting-approval" element={<WaitingApproval />} />
+
+                    {/* Envio público de atestado médico (sem guards) */}
+                    <Route path="/atestados-medicos" element={<AtestadosMedicos />} />
 
                     {/* Portal */}
                     <Route path="/" element={<Auth><Portal /></Auth>} />
@@ -195,7 +241,13 @@ const App = () => {
                     <Route path="/gestao-maquinas/disponibilidade" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoDisponibilidade /></Secure>} />
                     <Route path="/gestao-maquinas/portfolio-empresas" element={<Secure permission="gestao_maquinas_caminhoes_view"><GestaoPortfolio /></Secure>} />
                     <Route path="/gestao-maquinas/linhas-operacionais" element={<Perm><LinhasOperacionaisPage /></Perm>} />
-                    <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_caminhoes_view"><CentralTransporte /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporte /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte/solicitacao/:solicitacaoId" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporteSolicitacao /></Secure>} />
+                    {/* CT-4 — movimentação direta (sem solicitação), com paradas múltiplas. */}
+                    <Route path="/gestao-maquinas/central-transporte/movimentacao/nova" element={<Secure permission="gestao_maquinas_central_transporte_view" action="criar"><CentralTransporteMovimentacaoNova /></Secure>} />
+                    <Route path="/gestao-maquinas/central-transporte/movimentacao/:viagemId" element={<Secure permission="gestao_maquinas_central_transporte_view" action="visualizar"><CentralTransporteMovimentacaoNova /></Secure>} />
+                    <Route path="/gestao-maquinas/mapa-operacional" element={<Secure permission="veiculos_equipamentos_mapa_operacional_view"><MapaOperacional /></Secure>} />
+                    <Route path="/minhas-mobilizacoes" element={<Secure permission="gestao_maquinas_minhas_mobilizacoes_view"><MinhasMobilizacoes /></Secure>} />
                     <Route path="/gestao-maquinas/checklist-saida/:movimentacaoId" element={<Perm><ChecklistSaida /></Perm>} />
                     {/* FASE 1/2: rota antiga mantida apenas como redirect para a nova rota definitiva em /engenharia. */}
                     <Route path="/gestao-maquinas/planejamento-macro" element={<Navigate to="/engenharia/planejamento-macro" replace />} />
@@ -228,6 +280,8 @@ const App = () => {
                     <Route path="/admin/biometria-facial" element={<Auth><Secure permission="biometria_facial_gerenciar"><BiometriaFacial /></Secure></Auth>} />
                     <Route path="/admin/auditoria-biometria" element={<Auth><Secure permission="admin_auditoria_view"><AuditoriaBiometria /></Secure></Auth>} />
                     <Route path="/admin/gestao-ponto" element={<Auth><Secure permission="biometria_facial_gerenciar"><GestaoPonto /></Secure></Auth>} />
+                    {/* Gate sintético: apenas SuperAdm passa pelo SecureRouteGuard. */}
+                    <Route path="/admin/qualidade-cadastral" element={<Secure permission="__superadmin_only__"><QualidadeCadastral /></Secure>} />
 
                     {/* SSO */}
                     <Route path="/sso/checklists" element={<Secure permission="acesso_sso_checklists"><SSOChecklistList /></Secure>} />
@@ -236,13 +290,31 @@ const App = () => {
                     <Route path="/sso/clinicas" element={<Secure permission="acesso_sso_clinica"><SSOClinicas /></Secure>} />
                     <Route path="/sso/checklists/dashboard" element={<Secure permission="acesso_sso_dashboard"><SSODashboard /></Secure>} />
                     <Route path="/sso/ver-e-agir" element={<Secure permission="acesso_sso_ver_agir"><SSOVerAgir /></Secure>} />
+                    <Route path="/sso/atestados" element={<Secure permission="saude_atestados_view"><AtestadosMedicosPainel /></Secure>} />
 
                     {/* Diárias */}
                     <Route path="/requisicoes/diarias/dashboard" element={<Secure permission="diarias_dashboard_view"><DashboardDiarias /></Secure>} />
                     <Route path="/requisicoes/diarias/solicitacoes" element={<Secure permission="diarias_solicitacoes_view"><DiariasSolicitacoes /></Secure>} />
                     <Route path="/requisicoes/diarias/relatorio" element={<Secure permission="diarias_relatorio_view"><DiariasRelatorio /></Secure>} />
                     <Route path="/requisicoes/diarias/apontamento-campo" element={<Secure permission="diarias_apontamento_view"><DiariasApontamentoCampo /></Secure>} />
-                    <Route path="/gestao-aprovacoes-diarias" element={<Secure permission="acesso_gestao_aprovacoes"><GestaoAprovacoesDiarias /></Secure>} />
+                    {/* Central de Aprovações (Fase 1) — aceita 3 permissões compatíveis (OR) via requiredPermissions. */}
+                    <Route path="/gestao-rh/central-aprovacoes" element={
+                      <SimpleAuthGuard><SimplePermissionGuard>
+                        <SecureRouteGuard requiredPermissions={["central_aprovacoes_view", "acesso_gestao_aprovacoes"]}>
+                          <CentralAprovacoes />
+                        </SecureRouteGuard>
+                      </SimplePermissionGuard></SimpleAuthGuard>
+                    } />
+                    {/* Rota legada — redireciona preservando querystring/hash. */}
+                    <Route path="/gestao-aprovacoes-diarias" element={<RedirectGestaoAprovacoesToCentral />} />
+                    {/* Página antiga preservada apenas como fallback interno (não linkada no menu). */}
+                    <Route path="/_legacy/gestao-aprovacoes-diarias" element={
+                      <SimpleAuthGuard><SimplePermissionGuard>
+                        <SecureRouteGuard requiredPermissions={["central_aprovacoes_view", "acesso_gestao_aprovacoes"]}>
+                          <GestaoAprovacoesDiarias />
+                        </SecureRouteGuard>
+                      </SimplePermissionGuard></SimpleAuthGuard>
+                    } />
                     <Route path="/requisicoes/diarias/auditoria-ponto-shadow" element={<Secure permission="__superadmin_only__"><PontoShadowAuditoria /></Secure>} />
 
                     {/* Licitações */}
@@ -262,6 +334,21 @@ const App = () => {
                     {/* Dev */}
                     <Route path="/dev/teste-ponto" element={<Auth><TestePonto /></Auth>} />
                     <Route path="/dev/pwa-status" element={<Auth><PwaStatus /></Auth>} />
+
+                    {/* Chamados Internos */}
+                    <Route path="/chamados-internos" element={<Secure permission="chamados_internos_view"><ChamadosInternosList /></Secure>} />
+                    
+                    <Route path="/chamados-internos/abrir" element={<Secure permission="chamados_internos_abrir"><ChamadosInternosAbrir /></Secure>} />
+                    <Route path="/chamados-internos/atendimento" element={<Secure permission="chamados_internos_atender"><ChamadosInternosAtendimento /></Secure>} />
+                    <Route path="/chamados-internos/dashboard" element={<Secure permission="chamados_internos_atender"><ChamadosInternosDashboard /></Secure>} />
+
+                    <Route path="/chamados-internos/admin" element={<Secure permission="chamados_internos_admin"><ChamadosInternosAdmin /></Secure>} />
+                    <Route path="/chamados-internos/:chamadoId" element={<Secure permission="chamados_internos_view"><ChamadoInternoDetalhe /></Secure>} />
+
+                    {/* POPs — Procedimentos Operacionais Padrão */}
+                    <Route path="/pops" element={<Secure permission="pops_view"><BibliotecaPops /></Secure>} />
+                    <Route path="/pops/gestao" element={<Secure permission="pops_view"><GestaoPops /></Secure>} />
+
 
                     <Route path="*" element={<NotFound />} />
                   </Routes>

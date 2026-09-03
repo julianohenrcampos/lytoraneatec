@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { useCentrosCustoQuery } from "@/hooks/useCentrosCustoQuery";
-import { useEscopoCentrosCusto } from "@/hooks/useEscopoCentrosCusto";
+import { usePlanejamentoScopeCentrosCusto } from "@/hooks/planejamentoMacro/usePlanejamentoScopeCentrosCusto";
 import { useAuthPermissionsStable } from "@/hooks/useAuthPermissionsStable";
+import { usePermission } from "@/hooks/usePermission";
 import { usePageTitle } from "@/contexts/PageTitleContext";
 import PlanejamentoMacroHeader from "./PlanejamentoMacroHeader";
 import PlanejamentoMacroResumoCards from "./PlanejamentoMacroResumoCards";
@@ -30,6 +31,7 @@ import {
 } from "@/lib/planejamentoMacro/planoSemanal/classificarRecurso";
 import { useCriarPlanejamentoObra } from "@/hooks/planejamentoMacro/useCriarPlanejamentoObra";
 import { useAtualizarPlanejamentoObra } from "@/hooks/planejamentoMacro/useAtualizarPlanejamentoObra";
+import { useTornarVigentePlanejamentoObra } from "@/hooks/planejamentoMacro/useTornarVigentePlanejamentoObra";
 import { useArquivarPlanejamentoObra } from "@/hooks/planejamentoMacro/useArquivarPlanejamentoObra";
 import { useExcluirPlanejamentoObra } from "@/hooks/planejamentoMacro/useExcluirPlanejamentoObra";
 import { Button } from "@/components/ui/button";
@@ -46,8 +48,16 @@ import { toast } from "sonner";
 
 const PlanejamentoMacroPage: React.FC = () => {
   const ccQuery = useCentrosCustoQuery({ queryKey: "planejamento-macro-cc" });
-  const escopo = useEscopoCentrosCusto();
+  const escopoPlan = usePlanejamentoScopeCentrosCusto();
   const { isSuperAdmin } = useAuthPermissionsStable();
+  const { hasActionPermission } = usePermission();
+  const canImportPlanejamento =
+    isSuperAdmin ||
+    hasActionPermission("engenharia_planejamento_macro_importar", "criar");
+  const canAtivarPlanejamento =
+    isSuperAdmin ||
+    hasActionPermission("engenharia_planejamento_macro_ativar", "aprovar");
+
 
   const today = new Date().toISOString().slice(0, 10);
   const in7 = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
@@ -80,10 +90,10 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const centrosCustoFiltrados = useMemo(() => {
     const all = ccQuery.data ?? [];
-    if (escopo.isGlobal) return all;
-    const allow = new Set(escopo.allowedCentroIds);
+    if (escopoPlan.isGlobal) return all;
+    const allow = new Set(escopoPlan.allowedCentroIds);
     return all.filter((cc) => allow.has(cc.id));
-  }, [ccQuery.data, escopo.isGlobal, escopo.allowedCentroIds]);
+  }, [ccQuery.data, escopoPlan.isGlobal, escopoPlan.allowedCentroIds]);
 
   const real = usePlanejamentoMacroReal(centroCustoId);
 
@@ -170,6 +180,7 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const criar = useCriarPlanejamentoObra();
   const atualizar = useAtualizarPlanejamentoObra();
+  const tornarVigente = useTornarVigentePlanejamentoObra();
   const arquivar = useArquivarPlanejamentoObra();
   const excluir = useExcluirPlanejamentoObra();
 
@@ -232,13 +243,14 @@ const PlanejamentoMacroPage: React.FC = () => {
   };
 
   const handleTornarVigente = async (p: PlanejamentoObraRow) => {
-    if (haVigente && real.planejamento?.id !== p.id) {
+    if (!canAtivarPlanejamento) {
       toast.error(
-        "Já existe um planejamento vigente para este Centro de Custo. Arquive o vigente atual antes de ativar outro."
+        "Você não possui permissão para tornar vigente o planejamento desta obra."
       );
       return;
     }
-    await atualizar.mutateAsync({ id: p.id, patch: { status: "vigente" } });
+    // A RPC transacional arquiva a versão vigente anterior automaticamente.
+    await tornarVigente.mutateAsync({ id: p.id });
   };
 
   const handleConfirmArchive = async () => {
@@ -289,7 +301,7 @@ const PlanejamentoMacroPage: React.FC = () => {
 
   const headerAction = centroCustoId ? (
     <>
-      {isSuperAdmin && (
+      {canImportPlanejamento && (
         <Button size="sm" onClick={() => setImportarRealOpen(true)} className="gap-1">
           <Upload className="h-4 w-4" />
           Importar nova versão
@@ -323,7 +335,7 @@ const PlanejamentoMacroPage: React.FC = () => {
         centrosCusto={centrosCustoFiltrados}
         centroCustoId={centroCustoId}
         onCentroCustoChange={setCentroCustoId}
-        loading={ccQuery.isLoading || escopo.isLoading}
+        loading={ccQuery.isLoading || escopoPlan.isLoading}
         headerAction={headerAction}
         tituloPrincipal={ccLabel ?? undefined}
         subtitulo={ccLabel ? "Planejamento Macro da Obra" : undefined}
@@ -451,8 +463,9 @@ const PlanejamentoMacroPage: React.FC = () => {
         open={importarRealOpen}
         onOpenChange={setImportarRealOpen}
         cc={ccSelecionado}
-        isSuperAdmin={isSuperAdmin}
+        canImport={canImportPlanejamento}
       />
+
 
       <PlanejamentosVersoesDialog
         open={versoesOpen}
@@ -460,6 +473,7 @@ const PlanejamentoMacroPage: React.FC = () => {
         planejamentos={lista.data ?? []}
         isLoading={lista.isLoading}
         isSuperAdmin={isSuperAdmin}
+        canAtivarPlanejamento={canAtivarPlanejamento}
         ccLabel={ccLabel}
         onEdit={(p) => {
           setVersoesOpen(false);

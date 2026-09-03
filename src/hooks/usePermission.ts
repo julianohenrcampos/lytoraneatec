@@ -97,7 +97,7 @@ function emitRbacFallbackEvent(evt: RbacFallbackEvent): void {
 // Cache: 1 minuto, invalidado em auth state change
 // ============================================================
 
-type Acao = 'visualizar' | 'criar' | 'editar' | 'excluir' | 'aprovar';
+export type Acao = 'visualizar' | 'criar' | 'editar' | 'excluir' | 'aprovar';
 
 interface PermissionState {
   userId: string | null;

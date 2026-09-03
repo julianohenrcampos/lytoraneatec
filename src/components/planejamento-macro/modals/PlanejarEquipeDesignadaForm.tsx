@@ -344,7 +344,7 @@ const PlanejarEquipeDesignadaForm: React.FC<Props> = ({
                             aria-label="Remover designação"
                             disabled={remover.isPending}
                             onClick={() =>
-                              remover.mutate({ id: r.id, status: r.status })
+                              remover.mutate({ id: r.id })
                             }
                           >
                             <Trash2 className="h-4 w-4" />

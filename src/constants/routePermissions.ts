@@ -36,6 +36,11 @@ export const ROUTE_PERMISSIONS = {
   '/gestao-maquinas/usinas': ['gestao_maquinas_usinas_view'],
   '/gestao-maquinas/relatorio-medicao': ['gestao_maquinas_relatorio_medicao_view'],
   '/gestao-maquinas/dashboard': ['dashboard_maquinas_view'],
+  '/gestao-maquinas/mapa-operacional': ['veiculos_equipamentos_mapa_operacional_view'],
+  '/minhas-mobilizacoes': ['gestao_maquinas_minhas_mobilizacoes_view'],
+  '/gestao-maquinas/central-transporte': ['gestao_maquinas_central_transporte_view'],
+  // CT-3B: página dedicada da solicitação herda exatamente a mesma permissão.
+  '/gestao-maquinas/central-transporte/solicitacao': ['gestao_maquinas_central_transporte_view'],
   // Módulo Engenharia oficializado no RBAC com permissão dedicada.
   // Entrada legacy mantida apontando para a mesma permissão para evitar bypass
   // em helpers que ainda referenciem a rota antiga (rota em si só faz redirect).
@@ -61,9 +66,14 @@ export const ROUTE_PERMISSIONS = {
   '/requisicoes/diarias/solicitacoes': ['diarias_solicitacoes_view', 'diarias_view'],
   '/requisicoes/diarias/apontamento-campo': ['diarias_apontamento_view'],
   '/requisicoes/diarias/relatorio': ['diarias_relatorio_view'],
-  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes'],
+  // Rota legada mantida para gate defensivo (a rota em si é redirect).
+  '/gestao-aprovacoes-diarias': ['acesso_gestao_aprovacoes', 'central_aprovacoes_view'],
+  // Central de Aprovações (Fase 1): compatibilidade OR entre permissão nova e a legada.
+  '/gestao-rh/central-aprovacoes': ['central_aprovacoes_view', 'acesso_gestao_aprovacoes'],
   // Shadow audit: gate sintético — apenas SuperAdmin passa pelo SecureRouteGuard.
   '/requisicoes/diarias/auditoria-ponto-shadow': ['__superadmin_only__'],
+  // Central de Qualidade Cadastral: gate sintético — exclusiva de SuperAdm.
+  '/admin/qualidade-cadastral': ['__superadmin_only__'],
 
   // SSO
   '/sso/checklists': ['acesso_sso_checklists'],
@@ -72,6 +82,7 @@ export const ROUTE_PERMISSIONS = {
   '/sso/agendamento-exames': ['acesso_sso_agendamento_exames'],
   '/sso/clinicas': ['acesso_sso_clinica'],
   '/sso/ver-e-agir': ['acesso_sso_ver_agir'],
+  '/sso/atestados': ['saude_atestados_view'],
 
   // Licitações
   '/licitacoes/dashboard': ['dashboard_licitacoes_view'],
@@ -85,14 +96,63 @@ export const ROUTE_PERMISSIONS = {
 
   // Ponto
   '/ponto': ['ponto_registrar'],
+
+  // Chamados Internos
+  '/chamados-internos': ['chamados_internos_view'],
+  
+  '/chamados-internos/abrir': ['chamados_internos_abrir'],
+  '/chamados-internos/atendimento': ['chamados_internos_atender'],
+  '/chamados-internos/dashboard': ['chamados_internos_atender'],
+
+  '/chamados-internos/admin': ['chamados_internos_admin'],
+  '/chamados-internos/:chamadoId': ['chamados_internos_view'],
+
+  // POPs — Procedimentos Operacionais Padrão
+  '/pops': ['pops_view'],
+  '/pops/gestao': ['pops_view'],
 } as const satisfies Record<string, readonly string[]>;
+
 
 export type AppRoute = keyof typeof ROUTE_PERMISSIONS;
 
 const _MAP = ROUTE_PERMISSIONS as Record<string, readonly string[]>;
 
+function normalizePath(pathname: string): string {
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    return pathname.slice(0, -1);
+  }
+  return pathname;
+}
+
+function matchDynamicRoute(pathname: string): readonly string[] | undefined {
+  const normalized = normalizePath(pathname);
+  const segments = normalized.split('/');
+  for (const pattern of Object.keys(_MAP)) {
+    if (!pattern.includes(':')) continue;
+    const patternSegments = pattern.split('/');
+    if (patternSegments.length !== segments.length) continue;
+    let ok = true;
+    for (let i = 0; i < patternSegments.length; i++) {
+      const p = patternSegments[i];
+      const s = segments[i];
+      if (p.startsWith(':')) {
+        if (!s) { ok = false; break; }
+      } else if (p !== s) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return _MAP[pattern];
+  }
+  return undefined;
+}
+
 export function getRoutePermissions(pathname: string): readonly string[] {
-  return _MAP[pathname] ?? [];
+  const normalized = normalizePath(pathname);
+  // 1) correspondência exata
+  if (_MAP[normalized]) return _MAP[normalized];
+  // 2) padrões dinâmicos
+  return matchDynamicRoute(normalized) ?? [];
 }
 
 export function hasRoutePermission(
@@ -102,7 +162,8 @@ export function hasRoutePermission(
 ): boolean {
   if (isSuperAdmin) return true;
   if (userPermissions.includes('*')) return true;
-  const required = _MAP[pathname];
-  if (!required) return true; // rota não mapeada => permitida
+  const normalized = normalizePath(pathname);
+  const required = _MAP[normalized] ?? matchDynamicRoute(normalized);
+  if (!required) return true; // rota não mapeada => permitida (legado)
   return required.some((p) => userPermissions.includes(p));
 }

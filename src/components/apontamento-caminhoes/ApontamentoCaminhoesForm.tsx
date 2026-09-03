@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -16,828 +17,1834 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+import { parseDateOnly, toDateOnlyString } from "@/utils/dateOnly";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ApontamentoCaminhao, ApontamentoInspecao } from "@/services/apontamentoCaminhoesService";
-import { ComboboxCaminhao } from "@/components/combobox/ComboboxCaminhao";
-import { mapSituacaoToDatabase, mapSituacaoFromDatabase } from "@/utils/situacaoMapping";
+import {
+  ApontamentoCaminhao,
+  ApontamentoInspecao,
+  CabecalhoApontamentoPayload,
+  ChecklistValor,
+  getSignedFotoUrl,
+  fetchLocalizacaoByApontamento,
+  fetchApontamentoAbertoPorAtivo,
+  descreverApontamentoAberto,
+  type LocalizacaoApontamentoPayload,
+  type LocalizacaoApontamentoRow,
+  type TurnoApontamento,
+  traduzirErroRpc,
+  definirTurnoApontamento,
+} from "@/services/apontamentoCaminhoesService";
+
+
+import { Combobox, type ComboboxOption } from "@/components/ui/combobox";
+import { CATEGORIA_IDS } from "@/constants/categorias";
+import {
+  mapSituacaoToDatabase,
+  mapSituacaoFromDatabase,
+  SITUACOES_APONTAMENTO,
+} from "@/utils/situacaoMapping";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import type {
+  FormSubmitPayload,
+  DetalhadoSubmit,
+  ApontamentoSubmitResult,
+  ApontamentoFormMode,
+} from "@/hooks/useApontamentoCaminhoes";
+import type { VeiculoDropdownItem } from "@/hooks/useApontamentoCaminhoes";
+import { useToast } from "@/hooks/use-toast";
+import {
+  CHECKLIST_CE_TEMPLATES,
+  resolveTemplateCE,
+  type ChecklistCeTemplateCodigo,
+} from "@/constants/checklistCeTemplates";
+import ChecklistEquipmentHeader from "./checklist/ChecklistEquipmentHeader";
+import ChecklistDinamico, {
+  type ChecklistDetalhadoState,
+  novoEstadoDetalhadoOK,
+} from "./checklist/ChecklistDinamico";
+import { AlertTriangle, Camera, X, MapPin, Loader2, MapPinOff } from "lucide-react";
+import ChecklistLegadoAgrupado, {
+  novoEstadoLegadoOK,
+} from "./checklist/ChecklistLegadoAgrupado";
+import { captureGeo } from "@/utils/registroManual/captureGeo";
+
+type ChecklistMode = "bloqueado" | "legado" | "detalhado-create" | "detalhado-edit";
+
+
+const CHECKLIST_FIELDS: {
+  key: keyof Pick<
+    ApontamentoInspecao,
+    | "nivel_oleo"
+    | "nivel_agua"
+    | "nivel_combustivel"
+    | "pressao_pneus"
+    | "estado_pneus"
+    | "luzes_funcionamento"
+    | "freios_funcionamento"
+    | "direcao_funcionamento"
+    | "equipamentos_seguranca"
+    | "limpeza_veiculo"
+  >;
+  label: string;
+}[] = [
+  { key: "nivel_oleo", label: "Nível de Óleo" },
+  { key: "nivel_agua", label: "Nível de Água" },
+  { key: "nivel_combustivel", label: "Nível de Combustível" },
+  { key: "pressao_pneus", label: "Pressão dos Pneus" },
+  { key: "estado_pneus", label: "Estado dos Pneus" },
+  { key: "luzes_funcionamento", label: "Luzes" },
+  { key: "freios_funcionamento", label: "Freios" },
+  { key: "direcao_funcionamento", label: "Direção" },
+  { key: "equipamentos_seguranca", label: "Equipamentos de Segurança" },
+  { key: "limpeza_veiculo", label: "Limpeza do Veículo" },
+];
+
+type ChecklistState = Record<(typeof CHECKLIST_FIELDS)[number]["key"], ChecklistValor | "">;
+
+const emptyChecklist = (): ChecklistState =>
+  CHECKLIST_FIELDS.reduce(
+    (acc, f) => ({ ...acc, [f.key]: "" }),
+    {} as ChecklistState
+  );
+
+interface FotoExistente {
+  path: string;
+  url: string | null;
+  loading: boolean;
+}
+
+interface FotoNova {
+  file: File;
+  previewUrl: string;
+  localId: string;
+}
 
 interface ApontamentoCaminhoesFormProps {
   isOpen: boolean;
+  /** Fechamento por ação manual (X, Cancelar, ESC, backdrop). Sujeito ao dirty guard. */
   onClose: () => void;
-  onSubmit: (data: {
-    apontamento: Partial<ApontamentoCaminhao>;
-    inspecao?: Partial<ApontamentoInspecao>;
-  }) => void;
+  /** Fechamento direto após persistência confirmada. Bypass do dirty guard. */
+  onCloseAfterSuccess?: () => void;
+  onSubmit: (payload: FormSubmitPayload) => Promise<ApontamentoSubmitResult>;
   currentApontamento: {
     apontamento: ApontamentoCaminhao | null;
     inspecao: ApontamentoInspecao | null;
   };
-  veiculosOptions: { id: string; label: string; situacao?: string }[];
-  operadoresOptions: { id: string; label: string }[];
-  centrosCustoOptions: { id: string; label: string }[];
+  veiculosOptions: VeiculoDropdownItem[];
+  operadoresOptions?: { id: string; label: string }[];
+  centrosCustoOptions: { id: string; label: string; searchText?: string }[];
   isLoading: boolean;
   currentUser: any;
   getUltimoHorimetro: (caminhaoId: string) => Promise<number | null>;
-  uploadFoto: (file: File) => Promise<string>;
+  mode?: ApontamentoFormMode;
+  /** Abre o fluxo de finalização do ciclo em aberto detectado no passo 1. */
+  onFinalizarAberto?: (apontamento: ApontamentoCaminhao) => void;
 }
+
+
+/** Uploader compacto de fotos gerais (modo legado). */
+const FotosGeraisLegado: React.FC<{
+  fotosExistentes: FotoExistente[];
+  fotosNovas: FotoNova[];
+  disabled?: boolean;
+  onAddFiles: (files: File[]) => void;
+  onRemoveNova: (localId: string) => void;
+  onRemoveExistente: (path: string) => void;
+}> = ({
+  fotosExistentes,
+  fotosNovas,
+  disabled,
+  onAddFiles,
+  onRemoveNova,
+  onRemoveExistente,
+}) => {
+  const inputId = "checklist-legado-fotos-gerais";
+  return (
+    <div className="space-y-2 mt-4">
+      <Label>Fotos de avarias / evidências</Label>
+      <div className="flex flex-wrap gap-2">
+        {fotosExistentes.map((f) => (
+          <div
+            key={f.path}
+            className="relative w-20 h-20 border rounded overflow-hidden bg-muted"
+          >
+            {f.url ? (
+              <img src={f.url} alt="" className="object-cover w-full h-full" />
+            ) : f.loading ? (
+              <div className="w-full h-full animate-pulse" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-[10px] text-muted-foreground">
+                Indisponível
+              </div>
+            )}
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onRemoveExistente(f.path)}
+                className="absolute top-0 right-0 bg-black/60 text-white rounded-bl px-1"
+                aria-label="Remover foto"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        ))}
+        {fotosNovas.map((f) => (
+          <div
+            key={f.localId}
+            className="relative w-20 h-20 border rounded overflow-hidden bg-muted"
+          >
+            <img src={f.previewUrl} alt="" className="object-cover w-full h-full" />
+            {!disabled && (
+              <button
+                type="button"
+                onClick={() => onRemoveNova(f.localId)}
+                className="absolute top-0 right-0 bg-black/60 text-white rounded-bl px-1"
+                aria-label="Remover foto"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      <input
+        id={inputId}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        multiple
+        className="hidden"
+        disabled={disabled}
+        onChange={(e) => {
+          if (!e.target.files || e.target.files.length === 0) return;
+          onAddFiles(Array.from(e.target.files));
+          e.target.value = "";
+        }}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => document.getElementById(inputId)?.click()}
+      >
+        <Camera className="h-4 w-4 mr-1" />
+        Adicionar foto
+      </Button>
+    </div>
+  );
+};
+
 
 const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
   isOpen,
   onClose,
+  onCloseAfterSuccess,
   onSubmit,
   currentApontamento,
   veiculosOptions,
-  operadoresOptions,
   centrosCustoOptions,
   isLoading,
   currentUser,
   getUltimoHorimetro,
-  uploadFoto
+  mode: modeProp,
+  onFinalizarAberto,
+
 }) => {
-  const [activeTab, setActiveTab] = useState('dados');
+  const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState("dados");
   const [showCancelDialog, setShowCancelDialog] = useState(false);
-  const [formData, setFormData] = useState<{
-    apontamento: Partial<ApontamentoCaminhao>;
-    inspecao: Partial<ApontamentoInspecao>;
-  }>({
-    apontamento: {},
-    inspecao: {}
-  });
-  const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState<Date | undefined>(new Date());
-  const [selectedVehicleType, setSelectedVehicleType] = useState<string>(""); // Track if it's a truck or equipment
+  // Ref sticky: só é resetada ao abrir uma nova sessão do modal.
+  // Nunca é resetada em catch/finally/handleDialogClose — evita a corrida
+  // do dirty guard após onCloseAfterSuccess.
+  const suppressDirtyGuardRef = useRef(false);
+  // Alias mantido só para minimizar diff com histórico; use suppressDirtyGuardRef.
+  const isClosingAfterSaveRef = suppressDirtyGuardRef;
+
+  // Reset da ref ao iniciar uma NOVA sessão do modal.
+  useEffect(() => {
+    if (isOpen) {
+      suppressDirtyGuardRef.current = false;
+    }
+  }, [isOpen]);
+
+
+
+  const [cabecalho, setCabecalho] = useState<Partial<CabecalhoApontamentoPayload>>({});
+  const [turno, setTurno] = useState<TurnoApontamento>("diurno");
+  const initialTurnoRef = useRef<TurnoApontamento>("diurno");
+
+  const [checklist, setChecklist] = useState<ChecklistState>(emptyChecklist());
+  const [avarias, setAvarias] = useState<string>("");
+  const [observacoes, setObservacoes] = useState<string>("");
+  const [fotosExistentes, setFotosExistentes] = useState<FotoExistente[]>([]);
+  const [pathsRemovidos, setPathsRemovidos] = useState<string[]>([]);
+  const [fotosNovas, setFotosNovas] = useState<FotoNova[]>([]);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // R3 — estado do checklist detalhado
+  const [detalhadoState, setDetalhadoState] = useState<ChecklistDetalhadoState | null>(null);
+  const [detalhadoTemplate, setDetalhadoTemplate] = useState<ChecklistCeTemplateCodigo | null>(null);
+  const [detalhadoVersao, setDetalhadoVersao] = useState<number>(1);
+  const [detalhadoRemovidos, setDetalhadoRemovidos] = useState<string[]>([]);
+  const [showValidation, setShowValidation] = useState(false);
+  const [pendingVeiculoChange, setPendingVeiculoChange] = useState<string | null>(null);
+
+  // L1..L9 — Localização GPS
+  type GeoStatus = "idle" | "capturing" | "captured" | "error";
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>("idle");
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const capturedGeoRef = useRef<LocalizacaoApontamentoPayload | null>(null);
+  const [capturedGeoDisplay, setCapturedGeoDisplay] =
+    useState<LocalizacaoApontamentoPayload | null>(null);
+  const [existingGeo, setExistingGeo] = useState<LocalizacaoApontamentoRow | null>(null);
+  const [existingGeoLoading, setExistingGeoLoading] = useState(false);
+
+  // Modo do formulário: create (novo, hora/horímetro final ocultos),
+  // edit (edição livre), finalizacao (read-only exceto Hora/Horímetro Finais).
+  const mode: ApontamentoFormMode =
+    modeProp ?? (currentApontamento.apontamento?.id ? "edit" : "create");
+  const isCreating = mode === "create";
+  const isFinalizing = mode === "finalizacao";
+  const isEditing = mode !== "create"; // edit e finalizacao carregam do registro existente
+  const isHistoricalEdit = useMemo(() => {
+    if (!isEditing) return false;
+    const d = currentApontamento.apontamento?.data;
+    if (!d) return false;
+    const today = format(new Date(), "yyyy-MM-dd");
+    return String(d) < today;
+  }, [isEditing, currentApontamento.apontamento?.data]);
+
+  // UUID estável do draft
+  const draftIdRef = useRef<string | null>(null);
+  const detalhadoTemplateRef = useRef<ChecklistCeTemplateCodigo | null>(null);
+  const initialObservacoesGeraisRef = useRef<string | null>(null);
+  const avariaPreloadedRef = useRef<boolean>(false);
+  // Guard composto ${modo}:${templateCodigo}:${ativoId} — evita
+  // reinicializar OK em: troca de aba, rerender, edição de item,
+  // upload de foto, retentativa. Reseta em: modal fechado, novo
+  // CREATE, troca de ativo confirmada, submit concluído.
+  const initGuardRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (currentApontamento.apontamento) {
-      console.log("Carregando apontamento existente:", currentApontamento.apontamento);
-      
-      // Map situacao from database to UI when loading existing data
-      const mappedSituacao = currentApontamento.apontamento.situacao 
-        ? mapSituacaoFromDatabase(currentApontamento.apontamento.situacao)
-        : undefined;
-      
-      setFormData({
-        apontamento: { 
-          ...currentApontamento.apontamento,
-          situacao: mappedSituacao
-        },
-        inspecao: currentApontamento.inspecao || {}
-      });
-      
-      if (currentApontamento.apontamento.data) {
-        setDate(new Date(currentApontamento.apontamento.data));
-      }
+    if (!isOpen) {
+      draftIdRef.current = null;
+      detalhadoTemplateRef.current = null;
+      initGuardRef.current = null;
+      capturedGeoRef.current = null;
+      setCapturedGeoDisplay(null);
+      setGeoStatus("idle");
+      setGeoError(null);
+      setExistingGeo(null);
+      return;
+    }
+    if (isEditing && currentApontamento.apontamento?.id) {
+      draftIdRef.current = currentApontamento.apontamento.id;
+    } else if (!draftIdRef.current) {
+      draftIdRef.current =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+  }, [isOpen, isEditing, currentApontamento.apontamento?.id]);
 
-      // Check vehicle type from the selected vehicle
-      if (currentApontamento.apontamento.caminhao_equipamento_id) {
-        const vehicle = veiculosOptions.find(v => v.id === currentApontamento.apontamento.caminhao_equipamento_id);
-        setSelectedVehicleType(vehicle?.label.includes("Caminhão") ? "Caminhão" : "Equipamento");
+  // L1..L9 — carregar localização existente em EDIT (não reenviada; só exibida)
+  useEffect(() => {
+    if (!isOpen || !isEditing) return;
+    const id = currentApontamento.apontamento?.id;
+    if (!id) return;
+    let cancel = false;
+    setExistingGeoLoading(true);
+    fetchLocalizacaoByApontamento(id)
+      .then((row) => {
+        if (!cancel) setExistingGeo(row);
+      })
+      .finally(() => {
+        if (!cancel) setExistingGeoLoading(false);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isOpen, isEditing, currentApontamento.apontamento?.id]);
+
+  const doCaptureGeo = async (): Promise<LocalizacaoApontamentoPayload | null> => {
+    setGeoStatus("capturing");
+    setGeoError(null);
+    const res = await captureGeo({
+      highAccuracy: true,
+      timeoutMs: 15000,
+      maximumAge: 30000,
+    });
+    if (!res.ok || !res.data) {
+      setGeoStatus("error");
+      setGeoError(res.error || "Não foi possível obter a localização.");
+      capturedGeoRef.current = null;
+      setCapturedGeoDisplay(null);
+      return null;
+    }
+    const loc: LocalizacaoApontamentoPayload = {
+      latitude: res.data.latitude,
+      longitude: res.data.longitude,
+      precisao_metros:
+        typeof res.data.accuracy === "number" ? res.data.accuracy : null,
+      capturado_em: res.data.capturedAt,
+    };
+    capturedGeoRef.current = loc;
+    setCapturedGeoDisplay(loc);
+    setGeoStatus("captured");
+    return loc;
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (isEditing && currentApontamento.apontamento) {
+      const ap = currentApontamento.apontamento;
+      const insp = currentApontamento.inspecao;
+      const mappedSituacao = ap.situacao ? mapSituacaoFromDatabase(ap.situacao) : "";
+      setCabecalho({
+        caminhao_equipamento_id: ap.caminhao_equipamento_id || undefined,
+        operador_id: ap.operador_id || undefined,
+        centro_custo_id: ap.centro_custo_id || undefined,
+        data: ap.data,
+        hora_inicial: ap.hora_inicial,
+        hora_final: ap.hora_final,
+        horimetro_inicial: ap.horimetro_inicial,
+        horimetro_final: ap.horimetro_final,
+        situacao: mappedSituacao,
+        abastecimento: ap.abastecimento,
+      });
+      const turnoAp: TurnoApontamento =
+        ((ap as any).turno === "noturno" ? "noturno" : "diurno");
+      setTurno(turnoAp);
+      initialTurnoRef.current = turnoAp;
+      if (ap.data) setDate(parseDateOnly(String(ap.data)));
+
+
+      // Hidratação: detalhado vs legado
+      const respostas = (insp as any)?.checklist_respostas;
+      const codigoSalvo = (insp as any)?.checklist_codigo as string | undefined;
+      const versaoSalva = Number((insp as any)?.checklist_versao || 1);
+      if (respostas && codigoSalvo && CHECKLIST_CE_TEMPLATES[codigoSalvo as ChecklistCeTemplateCodigo]) {
+        // Detalhado
+        const tpl = CHECKLIST_CE_TEMPLATES[codigoSalvo as ChecklistCeTemplateCodigo];
+        const st: ChecklistDetalhadoState = {};
+        tpl.grupos.forEach((g) =>
+          g.itens.forEach((i) => {
+            st[i.codigo] = { observacao: "", fotosSalvas: [], fotosNovas: [] };
+          })
+        );
+        const grupos = (respostas as any)?.grupos || [];
+        for (const g of grupos) {
+          for (const it of g?.itens || []) {
+            const cod = String(it?.codigo || "");
+            if (!st[cod]) continue;
+            st[cod] = {
+              status: it?.status || undefined,
+              observacao: it?.observacao || "",
+              fotosSalvas: Array.isArray(it?.fotos) ? [...it.fotos] : [],
+              fotosNovas: [],
+            };
+          }
+        }
+        setDetalhadoState(st);
+        setDetalhadoTemplate(codigoSalvo as ChecklistCeTemplateCodigo);
+        setDetalhadoVersao(versaoSalva);
+        setObservacoes((respostas as any)?.observacoes_gerais || insp?.observacoes_gerais || "");
+        setDetalhadoRemovidos([]);
+        // limpa legado
+        setChecklist(emptyChecklist());
+        setAvarias("");
+        setFotosExistentes([]);
+        setPathsRemovidos([]);
+        setFotosNovas([]);
+      } else {
+        // Legado
+        setDetalhadoState(null);
+        setDetalhadoTemplate(null);
+        setDetalhadoRemovidos([]);
+        const nextChecklist = emptyChecklist();
+        if (insp) {
+          CHECKLIST_FIELDS.forEach((f) => {
+            const v = (insp as any)[f.key];
+            if (v === "OK" || v === "NAO_OK" || v === "NA") nextChecklist[f.key] = v;
+          });
+        }
+        setChecklist(nextChecklist);
+        const avariaTxt = insp?.avarias_observadas || "";
+        const obsGeraisTxt = insp?.observacoes_gerais || "";
+        setAvarias(avariaTxt);
+        initialObservacoesGeraisRef.current = obsGeraisTxt || null;
+        if (!obsGeraisTxt && avariaTxt) {
+          setObservacoes(avariaTxt);
+          avariaPreloadedRef.current = true;
+        } else {
+          setObservacoes(obsGeraisTxt);
+          avariaPreloadedRef.current = false;
+        }
+        const paths = (insp?.fotos_inspecao as string[] | null) || [];
+        setFotosExistentes(paths.map((p) => ({ path: p, url: null, loading: true })));
+        setPathsRemovidos([]);
+        setFotosNovas([]);
       }
     } else {
-      // Set current time for new records and ensure operator is current user
       const now = new Date();
-      const currentTime = format(now, 'HH:mm');
-      
-      console.log("Inicializando novo apontamento com usuário:", currentUser);
-      
-      // Default inspecao fields to "OK" for new records
-      setFormData({
-        apontamento: {
-          data: format(now, 'yyyy-MM-dd'),
-          operador_id: currentUser?.funcionario_id || '',
-          hora_inicial: currentTime,
-        },
-        inspecao: {
-          documentacao: "OK",
-          tacografo: "OK",
-          sistema_eletrico: "OK",
-          nivel_oleo: "OK",
-          nivel_agua: "OK",
-          nivel_combustivel: "OK",
-          drenagem_tanque_ar: "OK",
-          material_rodante: "OK",
-          cinto_seguranca: "OK",
-          material_desgaste: "OK",
-          estado_implementos: "OK",
-          limpeza_interna: "OK",
-          engate_reboque: "OK",
-          estado_equipamentos: "OK",
-          inspecao_veicular: "OK",
-          material_amarracao: "OK"
-        }
+      setCabecalho({
+        data: format(now, "yyyy-MM-dd"),
+        operador_id: currentUser?.funcionario_id || undefined,
+        hora_inicial: format(now, "HH:mm"),
+        hora_final: null,
+        horimetro_inicial: null,
+        horimetro_final: null,
+        situacao: "",
+        abastecimento: null,
+        caminhao_equipamento_id: undefined,
+        centro_custo_id: undefined,
       });
+      setTurno("diurno");
+      initialTurnoRef.current = "diurno";
       setDate(now);
-    }
-  }, [currentApontamento, currentUser, veiculosOptions, isOpen]);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement>, 
-    section: 'apontamento' | 'inspecao' = 'apontamento'
-  ) => {
-    const { name, value, type } = e.target;
-    const newValue = type === 'number' ? Number(value) : value;
-    
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [name]: newValue
-      }
-    }));
+      setChecklist(novoEstadoLegadoOK() as ChecklistState);
+      setAvarias("");
+      setObservacoes("");
+      initialObservacoesGeraisRef.current = null;
+      avariaPreloadedRef.current = false;
+      setFotosExistentes([]);
+      setPathsRemovidos([]);
+      setFotosNovas([]);
+      setDetalhadoState(null);
+      setDetalhadoTemplate(null);
+      setDetalhadoRemovidos([]);
+    }
+    setActiveTab("dados");
+    setValidationError(null);
+    setShowValidation(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, isEditing, currentApontamento.apontamento?.id]);
+
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      const toLoad = fotosExistentes.filter((f) => f.loading);
+      if (toLoad.length === 0) return;
+      const urls = await Promise.all(toLoad.map((f) => getSignedFotoUrl(f.path)));
+      if (cancel) return;
+      setFotosExistentes((prev) =>
+        prev.map((f) => {
+          if (!f.loading) return f;
+          const idx = toLoad.findIndex((x) => x.path === f.path);
+          return { ...f, url: urls[idx] ?? null, loading: false };
+        })
+      );
+    })();
+    return () => {
+      cancel = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fotosExistentes.length]);
+
+  useEffect(() => {
+    return () => {
+      fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const setCab = (patch: Partial<CabecalhoApontamentoPayload>) =>
+    setCabecalho((p) => ({ ...p, ...patch }));
+
+  const hasDetalhadoAnswers = useMemo(() => {
+    if (!detalhadoState) return false;
+    return Object.values(detalhadoState).some((i) => !!i.status);
+  }, [detalhadoState]);
+
+  const applyVeiculoChange = (value: string) => {
+    setCab({ caminhao_equipamento_id: value });
+    fetchUltimoHorimetro(value);
+    // Template resolvido por useMemo/useEffect abaixo (CREATE).
   };
 
-  const handleSelectChange = (
-    value: string, 
-    field: string, 
-    section: 'apontamento' | 'inspecao' = 'apontamento'
-  ) => {
-    setFormData(prev => ({
-      ...prev,
-      [section]: {
-        ...prev[section],
-        [field]: value
-      }
-    }));
-
-    if (field === 'caminhao_equipamento_id') {
-      // Check vehicle type from the selected option
-      const vehicle = veiculosOptions.find(v => v.id === value);
-      const vehicleType = vehicle?.label.includes("Caminhão") ? "Caminhão" : "Equipamento";
-      setSelectedVehicleType(vehicleType);
-      
-      fetchUltimoHorimetro(value);
+  const handleSelectVeiculo = (value: string) => {
+    if (!isEditing && hasDetalhadoAnswers && value !== cabecalho.caminhao_equipamento_id) {
+      setPendingVeiculoChange(value);
+      return;
     }
+    applyVeiculoChange(value);
   };
+  const confirmVeiculoChange = () => {
+    if (pendingVeiculoChange) applyVeiculoChange(pendingVeiculoChange);
+    setPendingVeiculoChange(null);
+  };
+  const cancelVeiculoChange = () => setPendingVeiculoChange(null);
+
 
   const fetchUltimoHorimetro = async (caminhaoId: string) => {
     if (!caminhaoId) return;
-    
     try {
-      const horimetro = await getUltimoHorimetro(caminhaoId);
-      if (horimetro !== null) {
-        setFormData(prev => ({
-          ...prev,
-          apontamento: {
-            ...prev.apontamento,
-            horimetro_inicial: horimetro
-          }
-        }));
-      }
-    } catch (error) {
-      console.error("Erro ao buscar último horímetro:", error);
+      const h = await getUltimoHorimetro(caminhaoId);
+      if (h !== null) setCab({ horimetro_inicial: h });
+    } catch {
+      // silencioso
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || e.target.files.length === 0) return;
-    
-    const file = e.target.files[0];
-    try {
-      const imageUrl = await uploadFoto(file);
-      setUploadedImages(prev => [...prev, imageUrl]);
-      
-      setFormData(prev => ({
-        ...prev,
-        inspecao: {
-          ...prev.inspecao,
-          fotos_avarias: [...(prev.inspecao.fotos_avarias || []), imageUrl]
-        }
-      }));
-    } catch (error) {
-      console.error("Erro ao fazer upload da imagem:", error);
+  const handleChecklist = (
+    key: (typeof CHECKLIST_FIELDS)[number]["key"],
+    value: ChecklistValor
+  ) => {
+    setChecklist((p) => ({ ...p, [key]: value }));
+  };
+
+  // Uploads de fotos legadas foram removidos com o novo layout agrupado.
+  // fotosExistentes continua sendo enviado no payload para preservar o
+  // histórico do registro; nada é adicionado ou removido pela UI atual.
+
+  const badgeStatus = useMemo<"conforme" | "nao_conforme" | "incompleta">(() => {
+    const respostas = CHECKLIST_FIELDS.map((f) => checklist[f.key]);
+    if (respostas.some((r) => r === "")) return "incompleta";
+    if (respostas.some((r) => r === "NAO_OK")) return "nao_conforme";
+    return "conforme";
+  }, [checklist]);
+
+  const veiculoSelecionado = useMemo(
+    () => veiculosOptions.find((item) => item.id === cabecalho.caminhao_equipamento_id),
+    [veiculosOptions, cabecalho.caminhao_equipamento_id]
+  );
+
+  // Alerta preventivo: ciclo em aberto para o ativo selecionado (somente em create).
+  const [apontamentoAberto, setApontamentoAberto] = useState<ApontamentoCaminhao | null>(null);
+  const [checandoAberto, setChecandoAberto] = useState(false);
+  useEffect(() => {
+    const ativoId = cabecalho.caminhao_equipamento_id;
+    if (!isOpen || !isCreating || !ativoId) {
+      setApontamentoAberto(null);
+      setChecandoAberto(false);
+      return;
     }
+    let cancelado = false;
+    setChecandoAberto(true);
+    fetchApontamentoAbertoPorAtivo(ativoId, draftIdRef.current ?? undefined)
+      .then((aberto) => {
+        if (!cancelado) setApontamentoAberto((aberto as ApontamentoCaminhao) ?? null);
+      })
+      .catch(() => {
+        if (!cancelado) setApontamentoAberto(null);
+      })
+      .finally(() => {
+        if (!cancelado) setChecandoAberto(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [isOpen, isCreating, cabecalho.caminhao_equipamento_id]);
+
+  const isVeiculo = useMemo(
+    () => veiculoSelecionado?.categoria_ativo_id === CATEGORIA_IDS.VEICULO,
+    [veiculoSelecionado]
+  );
+  const medidorInicialLabel = isVeiculo ? "KM Inicial" : "Horímetro Inicial";
+  const medidorFinalLabel = isVeiculo ? "KM Final" : "Horímetro Final";
+
+  const veiculoComboOptions: ComboboxOption[] = useMemo(
+    () =>
+      veiculosOptions.map((v) => ({
+        value: v.id,
+        label: v.label,
+        searchText: v.searchText,
+      })),
+    [veiculosOptions]
+  );
+
+  const ccComboOptions: ComboboxOption[] = useMemo(
+    () =>
+      centrosCustoOptions.map((c) => ({
+        value: c.id,
+        label: c.label,
+        searchText: c.searchText ?? c.label,
+      })),
+    [centrosCustoOptions]
+  );
+
+  // ---- R3: derivação explícita do modo do checklist ----
+  const templateCreateResolved = useMemo(
+    () =>
+      !isEditing
+        ? resolveTemplateCE(veiculoSelecionado?.subcategoria_ativo_id ?? null)
+        : null,
+    [isEditing, veiculoSelecionado?.subcategoria_ativo_id]
+  );
+  const templateCreateCodigo = templateCreateResolved?.codigo ?? null;
+
+  const dadosFaltantes = useMemo<string[]>(() => {
+    const arr: string[] = [];
+    if (!cabecalho.caminhao_equipamento_id) arr.push("Caminhão/Equipamento");
+    if (!cabecalho.centro_custo_id) arr.push("Centro de Custo");
+    if (!(date || cabecalho.data)) arr.push("Data");
+    if (!cabecalho.operador_id) arr.push("Operador");
+    const med = cabecalho.horimetro_inicial;
+    if (med === null || med === undefined || (typeof med === "number" && Number.isNaN(med))) {
+      arr.push(isVeiculo ? "KM Inicial" : "Horímetro Inicial");
+    }
+    return arr;
+  }, [
+    cabecalho.caminhao_equipamento_id,
+    cabecalho.centro_custo_id,
+    cabecalho.data,
+    cabecalho.operador_id,
+    cabecalho.horimetro_inicial,
+    date,
+    isVeiculo,
+  ]);
+
+  const checklistMode = useMemo<ChecklistMode>(() => {
+    if (isEditing) {
+      const respostas = (currentApontamento.inspecao as any)?.checklist_respostas;
+      const cod = (currentApontamento.inspecao as any)?.checklist_codigo as
+        | string
+        | undefined;
+      if (
+        respostas &&
+        cod &&
+        CHECKLIST_CE_TEMPLATES[cod as ChecklistCeTemplateCodigo]
+      ) {
+        return "detalhado-edit";
+      }
+      return "legado";
+    }
+    if (dadosFaltantes.length > 0) return "bloqueado";
+    return templateCreateCodigo ? "detalhado-create" : "legado";
+  }, [isEditing, currentApontamento.inspecao, dadosFaltantes, templateCreateCodigo]);
+
+  // Seed do estado detalhado em CREATE quando o guard composto muda.
+  // A chave inclui o ativoId, portanto uma troca de ativo confirmada
+  // (que aplica novo caminhao_equipamento_id) força novo template OK.
+  useEffect(() => {
+    if (isEditing) return;
+    const ativoId = cabecalho.caminhao_equipamento_id || "";
+    if (templateCreateCodigo && templateCreateResolved && ativoId) {
+      const guard = `create:${templateCreateCodigo}:${ativoId}`;
+      if (initGuardRef.current === guard && detalhadoTemplateRef.current === templateCreateCodigo) {
+        // Mesmo guard — preservar draft (troca de aba, rerender, foto, obs).
+        return;
+      }
+      initGuardRef.current = guard;
+      detalhadoTemplateRef.current = templateCreateCodigo;
+      setDetalhadoTemplate(templateCreateCodigo);
+      setDetalhadoVersao(templateCreateResolved.versao);
+      setDetalhadoState(novoEstadoDetalhadoOK(templateCreateCodigo));
+      setDetalhadoRemovidos([]);
+    } else {
+      initGuardRef.current = null;
+      detalhadoTemplateRef.current = null;
+      setDetalhadoTemplate(null);
+      setDetalhadoState(null);
+      setDetalhadoRemovidos([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, templateCreateCodigo, cabecalho.caminhao_equipamento_id]);
+
+
+
+
+  const validarCabecalho = (): string | null => {
+    const dataStr = date ? (toDateOnlyString(date) as string) : cabecalho.data;
+    if (!cabecalho.caminhao_equipamento_id) return "Selecione o Caminhão/Equipamento.";
+    if (!cabecalho.operador_id) return "Operador não identificado.";
+    if (!cabecalho.centro_custo_id) return "Selecione o Centro de Custo.";
+    if (!dataStr) return "Selecione a data.";
+    if (!cabecalho.situacao) return "Selecione a Situação.";
+    return null;
+  };
+
+  const validarChecklist = (): string | null => {
+    if (badgeStatus === "incompleta") return "Complete todos os itens do checklist.";
+    if (badgeStatus === "nao_conforme" && !avarias.trim() && !observacoes.trim())
+      return "Há itens Não conformes. Preencha Avarias observadas ou Observações gerais.";
+    return null;
+  };
+
+  const onChangeDetalhadoItem = (
+    codigo: string,
+    patch: Partial<{
+      status: ChecklistValor;
+      observacao: string;
+      fotosSalvas: string[];
+      fotosNovas: { localId: string; file: File; previewUrl: string }[];
+    }>
+  ) => {
+    setDetalhadoState((prev) => {
+      if (!prev) return prev;
+      const curr = prev[codigo] || { observacao: "", fotosSalvas: [], fotosNovas: [] };
+      if (patch.fotosSalvas) {
+        const removidas = curr.fotosSalvas.filter((p) => !patch.fotosSalvas!.includes(p));
+        if (removidas.length > 0) {
+          setDetalhadoRemovidos((r) => Array.from(new Set([...r, ...removidas])));
+        }
+      }
+      return { ...prev, [codigo]: { ...curr, ...patch } };
+    });
+  };
+
+  const validarDetalhado = (): string | null => {
+    if (!detalhadoTemplate || !detalhadoState) return null;
+    const tpl = CHECKLIST_CE_TEMPLATES[detalhadoTemplate];
+    const itens = tpl.grupos.flatMap((g) => g.itens);
+    for (const i of itens.filter((x) => x.obrigatorio)) {
+      const s = detalhadoState[i.codigo];
+      if (!s?.status) return "Complete todos os itens obrigatórios do checklist.";
+    }
+    for (const i of itens) {
+      const s = detalhadoState[i.codigo];
+      if (!s) continue;
+      if (s.status === "NAO_OK" && !s.observacao.trim())
+        return `Descreva a observação para o item "${i.descricao}".`;
+      if (
+        s.status === "NAO_OK" &&
+        i.exigeFotoNaoOk &&
+        s.fotosSalvas.length + s.fotosNovas.length === 0
+      )
+        return `Anexe ao menos uma foto para o item "${i.descricao}".`;
+    }
+    return null;
+  };
+
+  const handleAvancarChecklist = () => {
+    if (dadosFaltantes.length > 0) {
+      setShowValidation(true);
+      setValidationError(
+        `Complete os Dados Operacionais: ${dadosFaltantes.join(", ")}.`
+      );
+      setActiveTab("dados");
+      return;
+    }
+    setValidationError(null);
+    setActiveTab("checklist");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setValidationError(null);
+    setShowValidation(true);
     setIsSubmitting(true);
-    
+
     try {
-      console.log("Iniciando salvamento do apontamento");
-      console.log("Dados do formulário:", formData);
-      console.log("Usuário atual:", currentUser);
-      
-      // Map situacao from UI to database before submitting
-      const mappedSituacao = formData.apontamento.situacao 
-        ? mapSituacaoToDatabase(formData.apontamento.situacao)
-        : undefined;
-      
-      // Garantir que o operador_id seja sempre o usuário atual
-      const submissionData = {
-        apontamento: {
-          ...formData.apontamento,
-          data: date ? format(date, 'yyyy-MM-dd') : undefined,
-          operador_id: currentUser?.funcionario_id || formData.apontamento.operador_id,
-          situacao: mappedSituacao
-        },
-        inspecao: formData.inspecao
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][SUBMIT_START]", {
+        mode,
+        checklistMode,
+        isCreating,
+        isFinalizing,
+      });
+
+      // Modo finalizacao: preservar todo o snapshot já carregado, só validar campos finais.
+      if (isFinalizing) {
+        if (
+          cabecalho.hora_final == null || cabecalho.hora_final === "" ||
+          cabecalho.horimetro_final == null || Number.isNaN(Number(cabecalho.horimetro_final))
+        ) {
+          setValidationError("Informe Hora Final e Horímetro/KM Final para finalizar o apontamento.");
+          return;
+        }
+        const horaIniStr = (cabecalho.hora_inicial || "") as string;
+        if (
+          horaIniStr &&
+          turno === "diurno" &&
+          String(cabecalho.hora_final) < horaIniStr
+        ) {
+          setValidationError(
+            "Hora Final anterior à Inicial só é permitida em turno Noturno. Ajuste o turno ou o horário."
+          );
+          return;
+
+        }
+        if (
+          cabecalho.horimetro_inicial != null &&
+          Number(cabecalho.horimetro_final) < Number(cabecalho.horimetro_inicial)
+        ) {
+          setValidationError("Horímetro/KM Final não pode ser menor que o inicial.");
+          return;
+        }
+      } else {
+        if (checklistMode === "bloqueado") {
+          setValidationError(
+            `Complete os Dados Operacionais: ${dadosFaltantes.join(", ")}.`
+          );
+          setActiveTab("dados");
+          return;
+        }
+
+        const errHead = validarCabecalho();
+        if (errHead) {
+          setValidationError(errHead);
+          setActiveTab("dados");
+          return;
+        }
+        const errChecklist =
+          (checklistMode === "detalhado-create" || checklistMode === "detalhado-edit")
+            ? validarDetalhado()
+            : validarChecklist();
+        if (errChecklist) {
+          setValidationError(errChecklist);
+          setActiveTab("checklist");
+          return;
+        }
+      }
+      const isDetalhado =
+        checklistMode === "detalhado-create" || checklistMode === "detalhado-edit";
+
+      const apontamentoId = draftIdRef.current;
+      if (!apontamentoId) {
+        setValidationError("Não foi possível gerar o identificador do apontamento.");
+        return;
+      }
+
+      // GPS — apenas na criação. Edição/finalização não recapturam.
+      let localizacaoParaEnviar: LocalizacaoApontamentoPayload | null = null;
+      if (isCreating) {
+        let loc = capturedGeoRef.current;
+        if (!loc) {
+          loc = await doCaptureGeo();
+        }
+        if (!loc) {
+          setValidationError(
+            "Não foi possível obter a localização (GPS). Ative o GPS e tente novamente."
+          );
+          setActiveTab("checklist");
+          return;
+        }
+        localizacaoParaEnviar = loc;
+        // eslint-disable-next-line no-console
+        console.info("[apontamento-ce][GEO_OK]", {
+          apontamentoId,
+          precisao: loc.precisao_metros,
+          capturadoEm: loc.capturado_em,
+        });
+      } else if (mode === "edit" && capturedGeoRef.current) {
+        // EDIT com captura explícita solicitada pelo usuário.
+        localizacaoParaEnviar = capturedGeoRef.current;
+      }
+
+      const dataStr = date ? (toDateOnlyString(date) as string) : (cabecalho.data as string);
+      const situacaoDb =
+        mapSituacaoToDatabase(cabecalho.situacao as string) || (cabecalho.situacao as string);
+
+      // Em CREATE forçamos finais nulos (garante ciclo "em andamento").
+      const horaFinalPayload = isCreating ? null : (cabecalho.hora_final ?? null);
+      const horimetroFinalPayload = isCreating
+        ? null
+        : cabecalho.horimetro_final === undefined
+        ? null
+        : cabecalho.horimetro_final;
+
+      const cabecalhoPayload: CabecalhoApontamentoPayload = {
+        caminhao_equipamento_id: cabecalho.caminhao_equipamento_id as string,
+        operador_id: cabecalho.operador_id as string,
+        centro_custo_id: cabecalho.centro_custo_id as string,
+        data: dataStr as string,
+        hora_inicial: cabecalho.hora_inicial ?? null,
+        hora_final: horaFinalPayload,
+        horimetro_inicial:
+          cabecalho.horimetro_inicial === undefined ? null : cabecalho.horimetro_inicial,
+        horimetro_final: horimetroFinalPayload,
+        situacao: situacaoDb as string,
+        abastecimento: cabecalho.abastecimento === undefined ? null : cabecalho.abastecimento,
+        ...(localizacaoParaEnviar ? { localizacao: localizacaoParaEnviar } : {}),
       };
-      
-      console.log("Dados finais para envio:", submissionData);
-      
-      if (!submissionData.apontamento.operador_id) {
-        throw new Error("Operador não identificado. Por favor, faça login novamente.");
+
+      const inspecaoPayload = {
+        nivel_oleo: checklist.nivel_oleo as ChecklistValor,
+        nivel_agua: checklist.nivel_agua as ChecklistValor,
+        nivel_combustivel: checklist.nivel_combustivel as ChecklistValor,
+        pressao_pneus: checklist.pressao_pneus as ChecklistValor,
+        estado_pneus: checklist.estado_pneus as ChecklistValor,
+        luzes_funcionamento: checklist.luzes_funcionamento as ChecklistValor,
+        freios_funcionamento: checklist.freios_funcionamento as ChecklistValor,
+        direcao_funcionamento: checklist.direcao_funcionamento as ChecklistValor,
+        equipamentos_seguranca: checklist.equipamentos_seguranca as ChecklistValor,
+        limpeza_veiculo: checklist.limpeza_veiculo as ChecklistValor,
+        avarias_observadas: avarias.trim() || null,
+        observacoes_gerais: (() => {
+          const obsTxt = observacoes.trim();
+          const avTxt = (avarias || "").trim();
+          if (
+            isEditing &&
+            !initialObservacoesGeraisRef.current &&
+            avariaPreloadedRef.current &&
+            obsTxt === avTxt
+          ) {
+            return null;
+          }
+          return obsTxt || null;
+        })(),
+        fotos_inspecao: [],
+      };
+
+      let detalhado: DetalhadoSubmit | undefined;
+      if (isDetalhado && detalhadoTemplate && detalhadoState) {
+        const tpl = CHECKLIST_CE_TEMPLATES[detalhadoTemplate];
+        const itensSubmit = tpl.grupos.flatMap((g) =>
+          g.itens.map((i) => {
+            const s = detalhadoState[i.codigo];
+            return {
+              item_codigo: i.codigo,
+              status: (s?.status || "NA") as ChecklistValor,
+              observacao: s?.observacao?.trim() || null,
+              fotosSalvas: s?.fotosSalvas || [],
+              fotosNovas: (s?.fotosNovas || []).map((f) => f.file),
+              fotosRemovidas: [],
+            };
+          })
+        );
+        detalhado = {
+          template_codigo: detalhadoTemplate,
+          template_versao: detalhadoVersao,
+          observacoes_gerais: observacoes.trim() || null,
+          itens: itensSubmit.filter((i) => detalhadoState[i.item_codigo]?.status),
+        };
+        if (detalhadoRemovidos.length > 0 && detalhado.itens.length > 0) {
+          detalhado.itens[0].fotosRemovidas = [...detalhadoRemovidos];
+        }
       }
-      
-      if (!submissionData.apontamento.caminhao_equipamento_id) {
-        throw new Error("Por favor, selecione um caminhão/equipamento.");
+
+      const payload: FormSubmitPayload = {
+        apontamentoId,
+        cabecalho: cabecalhoPayload,
+        inspecao: inspecaoPayload,
+        arquivosNovos: isDetalhado ? [] : fotosNovas.map((f) => f.file),
+        pathsMantidos: isDetalhado ? [] : fotosExistentes.map((f) => f.path),
+        pathsRemovidos: isDetalhado ? [] : pathsRemovidos,
+        detalhado,
+      };
+
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][PAYLOAD_READY]", {
+        apontamentoId,
+        isDetalhado,
+        hasLocalizacao: Boolean(payload.cabecalho.localizacao),
+        itensDetalhados: payload.detalhado?.itens.length ?? 0,
+      });
+
+      // Se a jornada é noturna e o registro já existe (edit/finalizacao), grava o turno
+      // ANTES do UPDATE de hora_final para não violar o CHECK constraint do banco.
+      if (!isCreating && turno !== initialTurnoRef.current) {
+        try {
+          await definirTurnoApontamento(apontamentoId, turno);
+          initialTurnoRef.current = turno;
+        } catch (e: any) {
+          const message = traduzirErroRpc(e);
+          setValidationError(message);
+          toast({ title: "Erro ao salvar turno", description: message, variant: "destructive" });
+          return;
+        }
       }
-      
-      if (!submissionData.apontamento.situacao) {
-        throw new Error("Por favor, selecione a situação do veículo.");
+
+      const result = await onSubmit(payload);
+
+      // Em criação, o registro foi criado agora com turno default 'diurno'.
+      // Se o operador selecionou 'noturno', sincroniza no banco (não bloqueia sucesso).
+      if (isCreating && turno === "noturno") {
+        try {
+          await definirTurnoApontamento(result.apontamentoId, "noturno");
+        } catch (e) {
+          console.warn("[apontamento-ce][TURNO_SYNC_FAIL]", e);
+        }
       }
-      
-      await onSubmit(submissionData);
-      console.log("Apontamento salvo com sucesso");
-    } catch (error) {
-      console.error("Erro ao enviar formulário:", error);
-      // O erro será tratado pelo hook pai
+
+      // Sucesso — marca supressão do dirty-guard, toast contextual, fecha via callback direto.
+      fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+      if (detalhadoState) {
+        Object.values(detalhadoState).forEach((it) =>
+          it.fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl))
+        );
+      }
+      const titleByKind: Record<ApontamentoSubmitResult["kind"], string> = {
+        created: "Apontamento iniciado com sucesso.",
+        finalized: "Apontamento finalizado com sucesso.",
+        updated: "Apontamento atualizado com sucesso.",
+      };
+      const descByKind: Record<ApontamentoSubmitResult["kind"], string> = {
+        created: "Finalize-o quando encerrar a operação.",
+        finalized: "Ciclo encerrado com sucesso.",
+        updated: "Alterações salvas com sucesso.",
+      };
+      toast({
+        title: titleByKind[result.kind],
+        description: descByKind[result.kind],
+      });
+      // A ref sticky garante que qualquer onOpenChange subsequente do Radix
+      // seja ignorado pelo dirty guard. NÃO resetar aqui.
+      suppressDirtyGuardRef.current = true;
+      // eslint-disable-next-line no-console
+      console.info("[apontamento-ce][CLOSE_AFTER_SUCCESS]", {
+        apontamentoId: result.apontamentoId,
+        kind: result.kind,
+      });
+      (onCloseAfterSuccess ?? onClose)();
+    } catch (error: any) {
+      // Erro: NÃO marcar bypass, NÃO fechar, NÃO toast de sucesso.
+      // Traduz códigos técnicos de RPC (ex: apontamento_ativo_existente,
+      // 42501, ambiguidade SQL) em mensagens humanas. Nunca expor error.message cru.
+      const message = traduzirErroRpc(error);
+      // eslint-disable-next-line no-console
+      console.error("[apontamento-ce][SUBMIT_ERROR]", {
+        rawMessage: error?.message,
+        code: error?.code,
+        translated: message,
+      });
+      setValidationError(message);
+      toast({
+        title: "Erro ao salvar apontamento",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isEditing = !!currentApontamento.apontamento?.id;
-  
-  const handleDialogClose = () => {
-    const hasChanges = Object.keys(formData.apontamento).length > 2 || 
-                      Object.keys(formData.inspecao).length > 0;
-                      
-    if (hasChanges && !isSubmitting && !isEditing) {
-      setShowCancelDialog(true);
-    } else {
-      onClose();
-    }
-  };
 
+
+  const hasDraftChanges =
+    !isEditing &&
+    (Boolean(cabecalho.caminhao_equipamento_id) ||
+      Boolean(cabecalho.centro_custo_id) ||
+      CHECKLIST_FIELDS.some((f) => checklist[f.key] !== "") ||
+      fotosNovas.length > 0 ||
+      pathsRemovidos.length > 0);
+
+  const handleDialogClose = () => {
+    // Ref sticky: se marcada, ignorar solicitação de fechamento (sucesso já fechou).
+    if (suppressDirtyGuardRef.current) {
+      return;
+    }
+    if (isSubmitting) return;
+    if (hasDraftChanges) {
+      setShowCancelDialog(true);
+      return;
+    }
+    onClose();
+  };
   const handleConfirmCancel = () => {
+    fotosNovas.forEach((f) => URL.revokeObjectURL(f.previewUrl));
     setShowCancelDialog(false);
     onClose();
   };
 
-  // Get the correct label for horimetro or km
-  const getHorimetroLabel = (isFinal = false) => {
-    if (selectedVehicleType === "Caminhão") {
-      return isFinal ? "Hodômetro Final (KM)" : "Hodômetro Inicial (KM)";
-    }
-    return isFinal ? "Horímetro Final" : "Horímetro Inicial";
-  };
 
-  // Get the current operator's name for display
-  const getCurrentOperatorName = () => {
-    if (currentUser) {
-      return currentUser.email || 'Usuário Atual';
-    }
-    return 'Não identificado';
-  };
+
+
+  const getCurrentOperatorName = () =>
+    currentUser?.nome_completo || currentUser?.email || "Não identificado";
 
   return (
     <>
-    <Dialog open={isOpen} onOpenChange={handleDialogClose}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Editar Apontamento' : 'Novo Apontamento'}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? 'Edite as informações do apontamento de caminhão/equipamento' 
-              : 'Registre um novo apontamento de caminhões e equipamentos'}
-          </DialogDescription>
-        </DialogHeader>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(o) => {
+          if (!o) handleDialogClose();
+        }}
+      >
+        <DialogContent className={isFinalizing ? "sm:max-w-[520px]" : "sm:max-w-[800px] max-h-[90vh] overflow-y-auto"}>
+          <DialogHeader>
+            <DialogTitle>
+              {isFinalizing
+                ? "Finalizar Apontamento"
+                : isCreating
+                ? "Iniciar Novo Apontamento"
+                : "Editar Apontamento"}
+            </DialogTitle>
+            <DialogDescription>
+              {isFinalizing
+                ? "Informe a Hora Final e o Horímetro/KM Final para encerrar o ciclo deste apontamento."
+                : isCreating
+                ? "Registre o início da operação. Os campos finais são preenchidos ao finalizar."
+                : "Edite as informações do apontamento de caminhão/equipamento."}
+            </DialogDescription>
+          </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 py-4">
-          <Tabs defaultValue="dados" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="dados">Dados Operacionais</TabsTrigger>
-              <TabsTrigger value="checklist">Checklist</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="dados" className="space-y-4 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="data">Data</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !date && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {date ? format(date, 'dd/MM/yyyy') : <span>Selecione uma data</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={date}
-                        onSelect={setDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="operador_id">Operador</Label>
-                  <div className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-md">
-                    <span className="text-sm text-gray-700">
-                      {getCurrentOperatorName()}
+          {isFinalizing ? (
+            <form onSubmit={handleSubmit} className="space-y-4 py-2">
+              <div className="rounded-md border bg-muted/30 p-3 text-sm space-y-1">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-muted-foreground">Equipamento:</span>{" "}
+                    <span className="font-medium">
+                      {veiculosOptions.find(v => v.id === cabecalho.caminhao_equipamento_id)?.label || "—"}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    O operador é automaticamente definido como o usuário logado
-                  </p>
+                  <div>
+                    <span className="text-muted-foreground">Centro de Custo:</span>{" "}
+                    <span className="font-medium">
+                      {centrosCustoOptions.find(c => c.id === cabecalho.centro_custo_id)?.label || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Data:</span>{" "}
+                    <span className="font-medium">
+                      {date ? format(date, "dd/MM/yyyy") : (cabecalho.data as string) || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Hora Inicial:</span>{" "}
+                    <span className="font-medium">{cabecalho.hora_inicial || "—"}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-muted-foreground">Horímetro/KM Inicial:</span>{" "}
+                    <span className="font-medium">
+                      {cabecalho.horimetro_inicial != null ? cabecalho.horimetro_inicial : "—"}
+                    </span>
+                  </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="caminhao_equipamento_id">Caminhão/Equipamento *</Label>
-                  <ComboboxCaminhao
-                    value={formData.apontamento.caminhao_equipamento_id || ''}
-                    onChange={(value) => handleSelectChange(value, 'caminhao_equipamento_id')}
-                    placeholder="Digite para buscar caminhão/equipamento"
-                    disabled={isEditing}
-                    includeEquipamentos={true}
-                    situacaoFilter={["Operando", "Em Manutenção", "Disponível", "Intempérie"]}
-                  />
-                </div>
+              </div>
 
-                
+              <div className="space-y-2">
+                <Label htmlFor="turno_compact">
+                  Turno <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  value={turno}
+                  onValueChange={(v) => setTurno(v as TurnoApontamento)}
+                >
+                  <SelectTrigger id="turno_compact">
+                    <SelectValue placeholder="Selecione o turno" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="diurno">Diurno</SelectItem>
+                    <SelectItem value="noturno">Noturno (atravessa a meia-noite)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Selecione Noturno quando a Hora Final for no dia seguinte à Hora Inicial.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+
                 <div className="space-y-2">
-                  <Label htmlFor="centro_custo_id">Centro de Custo</Label>
-                  <Select 
-                    value={formData.apontamento.centro_custo_id || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'centro_custo_id')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o centro de custo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {centrosCustoOptions.map(centro => (
-                        <SelectItem key={centro.id} value={centro.id}>
-                          {centro.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="horimetro_inicial">{getHorimetroLabel()}</Label>
+                  <Label htmlFor="hora_final_compact">
+                    Hora Final <span className="text-destructive">*</span>
+                  </Label>
                   <Input
-                    id="horimetro_inicial"
-                    name="horimetro_inicial"
-                    type="number"
-                    step="0.01"
-                    value={formData.apontamento.horimetro_inicial || ''}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                    disabled={isEditing}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="horimetro_final">{getHorimetroLabel(true)}</Label>
-                  <Input
-                    id="horimetro_final"
-                    name="horimetro_final"
-                    type="number"
-                    step="0.01"
-                    value={formData.apontamento.horimetro_final || ''}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="hora_inicial">Hora Inicial</Label>
-                  <Input
-                    id="hora_inicial"
-                    name="hora_inicial"
+                    id="hora_final_compact"
                     type="time"
-                    value={formData.apontamento.hora_inicial || ''}
-                    onChange={handleInputChange}
-                    disabled={isEditing}
+                    value={(cabecalho.hora_final as string) || ""}
+                    onChange={(e) => setCabecalho({ ...cabecalho, hora_final: e.target.value })}
                   />
                 </div>
-                
                 <div className="space-y-2">
-                  <Label htmlFor="hora_final">Hora Final</Label>
+                  <Label htmlFor="horimetro_final_compact">
+                    Horímetro/KM Final <span className="text-destructive">*</span>
+                  </Label>
                   <Input
-                    id="hora_final"
-                    name="hora_final"
-                    type="time"
-                    value={formData.apontamento.hora_final || ''}
-                    onChange={handleInputChange}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="situacao">Situação *</Label>
-                  <Select 
-                    value={formData.apontamento.situacao || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'situacao')}
-                    required
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a situação" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Operando">Operando</SelectItem>
-                      <SelectItem value="Em Manutenção">Em Manutenção</SelectItem>
-                      <SelectItem value="Parado">Parado</SelectItem>
-                      <SelectItem value="Intempérie">Intempérie</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="abastecimento">Abastecimento (litros)</Label>
-                  <Input
-                    id="abastecimento"
-                    name="abastecimento"
+                    id="horimetro_final_compact"
                     type="number"
                     step="0.01"
-                    value={formData.apontamento.abastecimento || ''}
-                    onChange={handleInputChange}
-                    placeholder="0.00"
+                    min={cabecalho.horimetro_inicial ?? undefined}
+                    value={cabecalho.horimetro_final ?? ""}
+                    onChange={(e) =>
+                      setCabecalho({
+                        ...cabecalho,
+                        horimetro_final: e.target.value === "" ? undefined : Number(e.target.value),
+                      })
+                    }
                   />
                 </div>
               </div>
-              
-              <div className="flex justify-between mt-8">
-                <Button type="button" variant="outline" onClick={handleDialogClose}>
+
+              {validationError && (
+                <p className="text-sm text-destructive">{validationError}</p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={handleDialogClose} disabled={isSubmitting}>
                   Cancelar
                 </Button>
-                
-                {isEditing ? (
-                  <Button 
-                    type="submit" 
-                    disabled={isSubmitting || isLoading}
-                  >
-                    {isSubmitting ? "Salvando..." : "Salvar"}
-                  </Button>
-                ) : (
-                  <Button 
-                    type="button" 
-                    onClick={() => setActiveTab('checklist')}
-                  >
-                    Próximo
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Button>
-                )}
+                <Button type="submit" disabled={isSubmitting || isLoading}>
+                  {isSubmitting ? "Finalizando..." : "Finalizar apontamento"}
+                </Button>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="checklist" className="space-y-4 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="documentacao">Documentação</Label>
-                  <Select 
-                    value={formData.inspecao.documentacao || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'documentacao', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="tacografo">Tacógrafo</Label>
-                  <Select 
-                    value={formData.inspecao.tacografo || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'tacografo', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="sistema_eletrico">Sistema Elétrico</Label>
-                  <Select 
-                    value={formData.inspecao.sistema_eletrico || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'sistema_eletrico', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="nivel_oleo">Nível Óleo</Label>
-                  <Select 
-                    value={formData.inspecao.nivel_oleo || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'nivel_oleo', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="nivel_agua">Nível Água</Label>
-                  <Select 
-                    value={formData.inspecao.nivel_agua || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'nivel_agua', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="nivel_combustivel">Nível Combustível</Label>
-                  <Select 
-                    value={formData.inspecao.nivel_combustivel || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'nivel_combustivel', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="drenagem_tanque_ar">Drenagem Tanque de Ar</Label>
-                  <Select 
-                    value={formData.inspecao.drenagem_tanque_ar || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'drenagem_tanque_ar', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="material_rodante">Material Rodante</Label>
-                  <Select 
-                    value={formData.inspecao.material_rodante || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'material_rodante', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="cinto_seguranca">Cinto de Segurança</Label>
-                  <Select 
-                    value={formData.inspecao.cinto_seguranca || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'cinto_seguranca', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="material_desgaste">Material de Desgaste</Label>
-                  <Select 
-                    value={formData.inspecao.material_desgaste || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'material_desgaste', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="estado_implementos">Estado dos Implementos</Label>
-                  <Select 
-                    value={formData.inspecao.estado_implementos || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'estado_implementos', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="limpeza_interna">Limpeza Interna</Label>
-                  <Select 
-                    value={formData.inspecao.limpeza_interna || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'limpeza_interna', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="engate_reboque">Engate de Reboque</Label>
-                  <Select 
-                    value={formData.inspecao.engate_reboque || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'engate_reboque', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="estado_equipamentos">Estado dos Equipamentos</Label>
-                  <Select 
-                    value={formData.inspecao.estado_equipamentos || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'estado_equipamentos', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="inspecao_veicular">Inspeção Veicular</Label>
-                  <Select 
-                    value={formData.inspecao.inspecao_veicular || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'inspecao_veicular', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="material_amarracao">Material de Amarração</Label>
-                  <Select 
-                    value={formData.inspecao.material_amarracao || ''} 
-                    onValueChange={(value) => handleSelectChange(value, 'material_amarracao', 'inspecao')}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="OK">OK</SelectItem>
-                      <SelectItem value="Não OK">Não OK</SelectItem>
-                      <SelectItem value="N/A">N/A</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="anotacoes">Anotações</Label>
-                  <Input
-                    id="anotacoes"
-                    name="anotacoes"
-                    value={formData.inspecao.anotacoes || ''}
-                    onChange={(e) => handleInputChange(e, 'inspecao')}
-                    placeholder="Observações adicionais"
-                  />
-                </div>
-                
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="fotos">Fotos de Avarias (opcional)</Label>
-                  <Input
-                    id="fotos"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                  />
-                  {uploadedImages.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                      {uploadedImages.map((img, idx) => (
-                        <div key={idx} className="relative aspect-square">
-                          <img 
-                            src={img} 
-                            alt={`Avaria ${idx + 1}`} 
-                            className="w-full h-full object-cover rounded" 
-                          />
+            </form>
+          ) : (
+          <form onSubmit={handleSubmit} className="space-y-4 py-4">
+
+            <Tabs
+              value={activeTab}
+              onValueChange={(v) => {
+                if (v === "checklist" && checklistMode === "bloqueado") {
+                  setShowValidation(true);
+                  setValidationError(
+                    `Complete os Dados Operacionais: ${dadosFaltantes.join(", ")}.`
+                  );
+                  setActiveTab("dados");
+                  return;
+                }
+                setActiveTab(v);
+              }}
+            >
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="dados">Dados Operacionais</TabsTrigger>
+                <TabsTrigger
+                  value="checklist"
+                  disabled={checklistMode === "bloqueado"}
+                >
+                  Checklist
+                  {checklistMode === "detalhado-create" ||
+                  checklistMode === "detalhado-edit" ? (
+                    <Badge
+                      variant="secondary"
+                      className="ml-2 bg-primary/10 text-primary"
+                    >
+                      Detalhado
+                    </Badge>
+                  ) : checklistMode === "legado" ? (
+                    <Badge
+                      variant="outline"
+                      className="ml-2"
+                      title={
+                        isEditing
+                          ? "Registro histórico no formato legado."
+                          : "Esta subcategoria ainda não possui um modelo específico."
+                      }
+                    >
+                      {isEditing ? "Legado" : "Genérico"}
+                    </Badge>
+                  ) : null}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="dados" className="space-y-4 mt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Data</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !date && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {date ? format(date, "dd/MM/yyyy") : <span>Selecione uma data</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={date} onSelect={setDate} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Operador</Label>
+                    <div className="flex items-center p-3 bg-muted rounded-md">
+                      <span className="text-sm">{getCurrentOperatorName()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isEditing
+                        ? "Operador preservado do registro original"
+                        : "Operador definido como o usuário logado"}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Caminhão/Equipamento *</Label>
+                    <Combobox
+                      options={veiculoComboOptions}
+                      value={cabecalho.caminhao_equipamento_id || ""}
+                      onChange={handleSelectVeiculo}
+                      placeholder="Selecione o veículo/equipamento"
+                      searchPlaceholder="Buscar por frota, placa ou equipamento..."
+                      emptyText="Nenhum veículo ou equipamento encontrado"
+                      disabled={isEditing}
+                    />
+                    {checandoAberto && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Verificando ciclos em aberto...
+                      </p>
+                    )}
+                    {apontamentoAberto && (
+                      <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 space-y-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                          <div className="text-sm">
+                            <p className="font-medium text-destructive">
+                              Este ativo já possui um apontamento em andamento.
+                            </p>
+                            <p className="text-muted-foreground">
+                              {descreverApontamentoAberto(apontamentoAberto)} Finalize o ciclo
+                              aberto antes de iniciar um novo.
+                            </p>
+                          </div>
                         </div>
-                      ))}
+                        {onFinalizarAberto && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onFinalizarAberto(apontamentoAberto)}
+                          >
+                            Finalizar apontamento aberto
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+
+                  <div className="space-y-2">
+                    <Label>Centro de Custo *</Label>
+                    <Combobox
+                      options={ccComboOptions}
+                      value={cabecalho.centro_custo_id || ""}
+                      onChange={(v) => setCab({ centro_custo_id: v })}
+                      placeholder="Selecione o centro de custo"
+                      searchPlaceholder="Buscar por código ou nome..."
+                      emptyText="Nenhum centro de custo encontrado"
+                    />
+                  </div>
+
+
+                  <div className="space-y-2">
+                    <Label>{medidorInicialLabel}</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={cabecalho.horimetro_inicial ?? ""}
+                      onChange={(e) =>
+                        setCab({
+                          horimetro_inicial:
+                            e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      placeholder="0.00"
+                      disabled={isEditing}
+                    />
+                  </div>
+
+                  {!isCreating && (
+                    <div className="space-y-2">
+                      <Label>
+                        {medidorFinalLabel}
+                        {isFinalizing ? " *" : ""}
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={cabecalho.horimetro_final ?? ""}
+                        onChange={(e) =>
+                          setCab({
+                            horimetro_final:
+                              e.target.value === "" ? null : Number(e.target.value),
+                          })
+                        }
+                        placeholder="0.00"
+                      />
                     </div>
                   )}
+
+                  <div className="space-y-2">
+                    <Label>Hora Inicial</Label>
+                    <Input
+                      type="time"
+                      value={cabecalho.hora_inicial || ""}
+                      onChange={(e) => setCab({ hora_inicial: e.target.value })}
+                      disabled={isEditing}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Turno *</Label>
+                    <Select
+                      value={turno}
+                      onValueChange={(v) => setTurno(v as TurnoApontamento)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o turno" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="diurno">Diurno</SelectItem>
+                        <SelectItem value="noturno">
+                          Noturno (atravessa a meia-noite)
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+
+                  {!isCreating && (
+                    <div className="space-y-2">
+                      <Label>Hora Final{isFinalizing ? " *" : ""}</Label>
+                      <Input
+                        type="time"
+                        value={cabecalho.hora_final || ""}
+                        onChange={(e) => setCab({ hora_final: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label>Situação *</Label>
+                    <Select
+                      value={cabecalho.situacao || ""}
+                      onValueChange={(v) => setCab({ situacao: v })}
+                      disabled={isFinalizing}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a situação" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SITUACOES_APONTAMENTO.map((s) => (
+                          <SelectItem key={s.value} value={s.label}>
+                            {s.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+
+                  <div className="space-y-2">
+                    <Label>Abastecimento (litros)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={cabecalho.abastecimento ?? ""}
+                      onChange={(e) =>
+                        setCab({
+                          abastecimento:
+                            e.target.value === "" ? null : Number(e.target.value),
+                        })
+                      }
+                      placeholder="0.00"
+                    />
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex justify-between mt-8">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => setActiveTab('dados')}
-                >
-                  <ChevronLeft className="mr-2 h-4 w-4" />
-                  Voltar
-                </Button>
-                
-                <div className="space-x-2">
+
+                <div className="flex justify-between mt-8">
                   <Button type="button" variant="outline" onClick={handleDialogClose}>
                     Cancelar
                   </Button>
-                  
-                  <Button 
-                    type="submit" 
-                    disabled={isSubmitting || isLoading}
-                  >
-                    {isSubmitting ? "Salvando..." : "Salvar"}
+                  <Button type="button" onClick={handleAvancarChecklist}>
+                    Próximo <ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </form>
-      </DialogContent>
-    </Dialog>
+              </TabsContent>
 
-      {/* Cancel Confirmation Dialog */}
+              <TabsContent value="checklist" className="space-y-4 mt-4">
+                {checklistMode === "bloqueado" ? (
+                  <div className="border rounded-md p-6 bg-muted/40 flex flex-col items-start gap-3">
+                    <div className="flex items-center gap-2 text-amber-700">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-semibold">Complete os Dados Operacionais</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Para abrir o checklist, preencha os campos abaixo na aba anterior:
+                    </p>
+                    <ul className="list-disc pl-5 text-sm">
+                      {dadosFaltantes.map((c) => (
+                        <li key={c}>{c}</li>
+                      ))}
+                    </ul>
+                    <Button type="button" onClick={() => setActiveTab("dados")}>
+                      <ChevronLeft className="mr-2 h-4 w-4" />
+                      Voltar para Dados Operacionais
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <ChecklistEquipmentHeader
+                      key={veiculoSelecionado?.id ?? "sem-veiculo"}
+                      veiculo={veiculoSelecionado || null}
+                      operadorNome={getCurrentOperatorName()}
+                      data={date ? (toDateOnlyString(date) as string) : cabecalho.data ?? null}
+                      medidorLabel={medidorInicialLabel}
+                      medidorValor={cabecalho.horimetro_inicial ?? null}
+                      centroCustoLabel={
+                        ccComboOptions.find((c) => c.value === cabecalho.centro_custo_id)
+                          ?.label || null
+                      }
+                    />
+
+                    {(checklistMode === "detalhado-create" ||
+                      checklistMode === "detalhado-edit") &&
+                    detalhadoTemplate &&
+                    detalhadoState ? (
+                      <>
+                        <ChecklistDinamico
+                          templateCodigo={detalhadoTemplate}
+                          state={detalhadoState}
+                          onChangeItem={(codigo, patch) =>
+                            onChangeDetalhadoItem(codigo, patch as any)
+                          }
+                          showValidation={showValidation}
+                          showInitialHint={!isEditing}
+                          disabled={isSubmitting}
+                        />
+                        <div className="space-y-2 mt-4">
+                          <Label>Observações gerais</Label>
+                          <Textarea
+                            value={observacoes}
+                            onChange={(e) => setObservacoes(e.target.value)}
+                            placeholder="Observações consolidadas do checklist"
+                            rows={3}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <ChecklistLegadoAgrupado
+                          values={checklist}
+                          onChange={(k, v) => handleChecklist(k, v)}
+                          showValidation={showValidation}
+                          showInitialHint={!isEditing}
+                          disabled={isSubmitting}
+                        />
+                        <div className="space-y-2 mt-4">
+                          <Label>Observações gerais</Label>
+                          <Textarea
+                            value={observacoes}
+                            onChange={(e) => setObservacoes(e.target.value)}
+                            placeholder="Descreva observações, avarias ou notas do checklist"
+                            rows={3}
+                          />
+                        </div>
+                        <FotosGeraisLegado
+                          fotosExistentes={fotosExistentes}
+                          fotosNovas={fotosNovas}
+                          disabled={isSubmitting}
+                          onAddFiles={(files) => {
+                            const novas: FotoNova[] = files
+                              .filter(
+                                (f) =>
+                                  ["image/jpeg", "image/png", "image/webp"].includes(
+                                    f.type
+                                  ) && f.size <= 5 * 1024 * 1024
+                              )
+                              .map((file) => ({
+                                file,
+                                previewUrl: URL.createObjectURL(file),
+                                localId: `${Date.now()}-${Math.random()
+                                  .toString(36)
+                                  .slice(2)}`,
+                              }));
+                            setFotosNovas((prev) => [...prev, ...novas]);
+                          }}
+                          onRemoveNova={(localId) => {
+                            setFotosNovas((prev) => {
+                              const alvo = prev.find((x) => x.localId === localId);
+                              if (alvo) URL.revokeObjectURL(alvo.previewUrl);
+                              return prev.filter((x) => x.localId !== localId);
+                            });
+                          }}
+                          onRemoveExistente={(path) => {
+                            setFotosExistentes((prev) =>
+                              prev.filter((f) => f.path !== path)
+                            );
+                            setPathsRemovidos((prev) =>
+                              prev.includes(path) ? prev : [...prev, path]
+                            );
+                          }}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+
+                {/* L1..L9 — Bloco de status GPS */}
+                <div className="mt-4 border rounded-md p-3 bg-muted/30">
+                  {isEditing ? (
+                    existingGeoLoading ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Verificando localização deste apontamento…
+                      </div>
+                    ) : existingGeo ? (
+                      <div className="flex items-start gap-2 text-sm">
+                        <MapPin className="h-4 w-4 mt-0.5 text-primary" />
+                        <div className="flex-1">
+                          <div className="font-medium">
+                            Localização já registrada neste apontamento
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            Capturada em{" "}
+                            {format(
+                              new Date(existingGeo.data_registro),
+                              "dd/MM/yyyy HH:mm"
+                            )}
+                            {existingGeo.precisao_gps != null
+                              ? ` · precisão aproximada: ${Math.round(
+                                  Number(existingGeo.precisao_gps)
+                                )} m`
+                              : ""}
+                          </div>
+                        </div>
+                      </div>
+                    ) : isHistoricalEdit ? (
+                      <div className="flex items-start gap-2 text-sm">
+                        <MapPinOff className="h-4 w-4 mt-0.5 text-muted-foreground" />
+                        <div className="text-muted-foreground">
+                          Este apontamento não possui localização registrada. Não é
+                          possível reconstruir retroativamente a posição original.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <MapPinOff className="h-4 w-4 mt-0.5" />
+                          Este apontamento ainda não possui localização registrada.
+                        </div>
+                        {geoStatus === "captured" && capturedGeoDisplay ? (
+                          <div className="text-xs text-emerald-700">
+                            Localização capturada
+                            {capturedGeoDisplay.precisao_metros != null
+                              ? ` — precisão aproximada: ${Math.round(
+                                  capturedGeoDisplay.precisao_metros
+                                )} m`
+                              : ""}
+                            . Será registrada agora ao salvar.
+                          </div>
+                        ) : geoStatus === "error" ? (
+                          <div className="text-xs text-destructive">
+                            {geoError || "Não foi possível obter a localização."}
+                          </div>
+                        ) : null}
+                        <div>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={geoStatus === "capturing" || isSubmitting}
+                            onClick={() => {
+                              void doCaptureGeo();
+                            }}
+                          >
+                            {geoStatus === "capturing" ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                Capturando…
+                              </>
+                            ) : (
+                              <>
+                                <MapPin className="h-4 w-4 mr-1" />
+                                {geoStatus === "captured"
+                                  ? "Capturar novamente"
+                                  : "Capturar localização deste apontamento"}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {geoStatus === "idle" && (
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 mt-0.5" />
+                          A localização (GPS) será capturada no momento do salvamento.
+                        </div>
+                      )}
+                      {geoStatus === "capturing" && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Capturando localização…
+                        </div>
+                      )}
+                      {geoStatus === "captured" && capturedGeoDisplay && (
+                        <div className="flex items-start gap-2 text-sm text-emerald-700">
+                          <MapPin className="h-4 w-4 mt-0.5" />
+                          <div>
+                            Localização capturada
+                            {capturedGeoDisplay.precisao_metros != null
+                              ? ` — precisão aproximada: ${Math.round(
+                                  capturedGeoDisplay.precisao_metros
+                                )} m`
+                              : ""}
+                            .
+                          </div>
+                        </div>
+                      )}
+                      {geoStatus === "error" && (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-start gap-2 text-sm text-destructive">
+                            <MapPinOff className="h-4 w-4 mt-0.5" />
+                            <div>
+                              {geoError ||
+                                "Não foi possível obter a localização (GPS)."}
+                            </div>
+                          </div>
+                          <div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={isSubmitting}
+                              onClick={() => {
+                                void doCaptureGeo();
+                              }}
+                            >
+                              <MapPin className="h-4 w-4 mr-1" />
+                              Tentar novamente
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {validationError && geoStatus !== "error" && (
+                  <p className="text-sm text-destructive mt-2">{validationError}</p>
+                )}
+
+                <div className="flex justify-between mt-8">
+                  <Button type="button" variant="outline" onClick={() => setActiveTab("dados")}>
+                    <ChevronLeft className="mr-2 h-4 w-4" />
+                    Voltar
+                  </Button>
+                  <div className="space-x-2">
+                    <Button type="button" variant="outline" onClick={handleDialogClose}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting || isLoading || !!apontamentoAberto}
+                    >
+
+                      {isSubmitting
+                        ? isCreating
+                          ? "Iniciando..."
+                          : isFinalizing
+                          ? "Finalizando..."
+                          : "Salvando..."
+                        : isCreating
+                        ? "Iniciar apontamento"
+                        : isFinalizing
+                        ? "Finalizar apontamento"
+                        : "Salvar"}
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ConfirmDialog
         isOpen={showCancelDialog}
         onClose={() => setShowCancelDialog(false)}
@@ -846,6 +1853,17 @@ const ApontamentoCaminhoesForm: React.FC<ApontamentoCaminhoesFormProps> = ({
         description="Deseja realmente cancelar? Todas as alterações serão perdidas."
         confirmText="Sim, cancelar"
         cancelText="Voltar"
+        variant="warning"
+      />
+
+      <ConfirmDialog
+        isOpen={!!pendingVeiculoChange}
+        onClose={cancelVeiculoChange}
+        onConfirm={confirmVeiculoChange}
+        title="Trocar Equipamento?"
+        description="Ao trocar o equipamento o checklist atual será descartado. Deseja continuar?"
+        confirmText="Sim, trocar"
+        cancelText="Manter"
         variant="warning"
       />
     </>

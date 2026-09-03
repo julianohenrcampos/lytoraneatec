@@ -59,6 +59,8 @@ const portalModules: PortalModule[] = [
       { route: "/gestao-maquinas/caminhoes", permission: "gestao_maquinas_caminhoes_view" },
       { route: "/gestao-maquinas/usinas", permission: "gestao_maquinas_usinas_view" },
       { route: "/gestao-maquinas/relatorio-medicao", permission: "gestao_maquinas_relatorio_medicao_view" },
+      // Motoristas/operadores acessam o Apontamento de Caminhões por este módulo (menu GESTÃO VEIC/EQUIP)
+      { route: "/requisicoes/apontamento-caminhoes", permission: "requisicoes_apontamento_caminhoes_view" },
     ],
   },
   {
@@ -74,7 +76,6 @@ const portalModules: PortalModule[] = [
       { route: "/requisicoes/registro-cargas", permission: "requisicoes_registro_cargas_view" },
       { route: "/registro-aplicacao", permission: "requisicoes_registro_aplicacao_view" },
       { route: "/requisicoes/apontamento-equipe", permission: "requisicoes_apontamento_equipe_view" },
-      { route: "/requisicoes/apontamento-caminhoes", permission: "requisicoes_apontamento_caminhoes_view" },
       { route: "/requisicoes/chamados-os", permission: "requisicoes_chamados_os_view" },
       { route: "/requisicoes/gestao-os", permission: "requisicoes_gestao_os_view" },
     ],
@@ -102,7 +103,9 @@ const portalModules: PortalModule[] = [
       { route: "/requisicoes/diarias/solicitacoes", permission: "diarias_view" },
       { route: "/requisicoes/diarias/apontamento-campo", permission: "diarias_apontamento_view" },
       { route: "/requisicoes/diarias/relatorio", permission: "diarias_relatorio_view" },
-      { route: "/gestao-aprovacoes-diarias", permission: "acesso_gestao_aprovacoes" },
+      // Central de Aprovações (Fase 1): entrada mantida no card de Diárias com nova permissão + legada.
+      { route: "/gestao-rh/central-aprovacoes", permission: "central_aprovacoes_view" },
+      { route: "/gestao-rh/central-aprovacoes", permission: "acesso_gestao_aprovacoes" },
     ],
   },
   {

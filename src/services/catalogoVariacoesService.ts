@@ -91,12 +91,16 @@ export const findOrCreateVariacao = async (
 export const getSubcategoriasDropdown = async () => {
   const { data, error } = await supabase
     .from("bd_subcategorias_ativos")
-    .select("id, nome_subcategoria, categoria_id")
+    .select("id, nome_subcategoria, categoria_id, categoria:bd_categorias_ativos(nome_categoria)")
     .eq("ativo", true)
     .order("nome_subcategoria");
   if (error) throw error;
-  return data || [];
+  return (data || []).map((s: any) => ({
+    ...s,
+    categoria_nome: s.categoria?.nome_categoria ?? null,
+  }));
 };
+
 
 export const UNIDADES_CAPACIDADE = [
   { value: "ton", label: "Toneladas (ton)" },

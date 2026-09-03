@@ -84,6 +84,8 @@ type FuncionarioEscopo = {
   empresa_id: string | null;
   empresa_nome: string | null;
   empresa_logo_url: string | null;
+  data_admissao: string | null;
+  salario_base: number | null;
 };
 
 type Funcao = { id: string; nome_funcao: string; salario_base: number | null };
@@ -139,7 +141,7 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
       const { data, error } = await supabase
         .from('bd_funcionarios')
         .select(
-          'id, nome_completo, centro_custo_id, funcao_id, empresa_id, status, bd_centros_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo), bd_funcoes:funcao_id(nome_funcao), bd_empresas:empresa_id(nome_empresa, logo_url)',
+          'id, nome_completo, centro_custo_id, funcao_id, empresa_id, status, data_admissao, salario_base, bd_centros_custo:centro_custo_id(codigo_centro_custo, nome_centro_custo), bd_funcoes:funcao_id(nome_funcao), bd_empresas:empresa_id(nome_empresa, logo_url)',
         )
         .in('centro_custo_id', ccIds)
         .in('status', ['Ativo', 'Ativo sem Registro'])
@@ -157,6 +159,8 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
         empresa_id: f.empresa_id ?? null,
         empresa_nome: f.bd_empresas?.nome_empresa ?? null,
         empresa_logo_url: f.bd_empresas?.logo_url ?? null,
+        data_admissao: f.data_admissao ?? null,
+        salario_base: f.salario_base != null ? Number(f.salario_base) : null,
       }));
     },
     enabled: open && ccIds.length >= 0,
@@ -216,10 +220,20 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
           observacao: it.observacao,
           data_efetivacao_desejada: it.data_efetivacao_desejada,
           precisa_exame: it.precisa_exame,
+          salario_atual:
+            (it as any).salario_atual != null
+              ? Number((it as any).salario_atual)
+              : funcionarioMap.get(it.funcionario_id)?.salario_base ?? null,
+          salario_novo:
+            (it as any).salario_novo != null
+              ? Number((it as any).salario_novo)
+              : funcaoMap.get(it.cargo_novo_id)?.salario_base ?? null,
+          data_admissao:
+            funcionarioMap.get(it.funcionario_id)?.data_admissao ?? null,
         })),
       );
     }
-  }, [open, isCreate, detailQuery.data, funcionarioMap]);
+  }, [open, isCreate, detailQuery.data, funcionarioMap, funcaoMap]);
 
   const header = detailQuery.data?.header;
   const totalItensPersistidos = detailQuery.data?.itens.length ?? 0;
@@ -253,6 +267,9 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
         observacao: null,
         data_efetivacao_desejada: null,
         precisa_exame: false,
+        salario_atual: f.salario_base ?? null,
+        salario_novo: null,
+        data_admissao: f.data_admissao ?? null,
       },
     ]);
   };
@@ -275,6 +292,7 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
     atualizarItem(tempId, {
       cargo_novo_id: funcId,
       cargo_novo_nome: f?.nome_funcao ?? '',
+      salario_novo: f?.salario_base != null ? Number(f.salario_base) : null,
     });
   };
 
@@ -402,10 +420,39 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
     }
     setPdfPending(true);
     try {
+      // Última classificação (consulta em lote, somente leitura)
+      const ultimaPorFuncionario = new Map<string, string>();
+      try {
+        const { data: hist } = await supabase
+          .from('bd_historico_funcional')
+          .select('funcionario_id, created_at')
+          .in(
+            'funcionario_id',
+            itens.map((i) => i.funcionario_id),
+          )
+          .order('created_at', { ascending: false });
+        for (const h of (hist || []) as any[]) {
+          if (!ultimaPorFuncionario.has(h.funcionario_id)) {
+            ultimaPorFuncionario.set(h.funcionario_id, h.created_at);
+          }
+        }
+      } catch (err) {
+        console.warn('[CLASSIFICACAO_LOTE_PDF] falha ao buscar histórico', err);
+      }
+
       const itensPdf = itens.map((it) => {
         const f = funcionarioMap.get(it.funcionario_id);
         return {
           funcionario_nome: it.funcionario_nome,
+          data_admissao: it.data_admissao ?? f?.data_admissao ?? null,
+          ultima_classificacao:
+            ultimaPorFuncionario.get(it.funcionario_id) ?? null,
+          salario_atual: it.salario_atual ?? f?.salario_base ?? null,
+          salario_novo:
+            it.salario_novo ??
+            (funcaoMap.get(it.cargo_novo_id)?.salario_base != null
+              ? Number(funcaoMap.get(it.cargo_novo_id)!.salario_base)
+              : null),
           empresa_id: f?.empresa_id ?? null,
           empresa_nome: f?.empresa_nome ?? null,
           empresa_logo_url: f?.empresa_logo_url ?? null,
@@ -705,18 +752,26 @@ export const SolicitacaoClassificacaoLoteDialog: React.FC<Props> = ({
                               </div>
                             </div>
 
-                            {salarioRef != null && (
-                              <p className="text-xs text-muted-foreground">
-                                Salário base do novo cargo (referência, não
-                                persistido):{' '}
-                                <span className="font-medium">
-                                  {Number(salarioRef).toLocaleString('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL',
-                                  })}
-                                </span>
-                              </p>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Salário atual:{' '}
+                              <span className="font-medium">
+                                {it.salario_atual != null
+                                  ? Number(it.salario_atual).toLocaleString('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                    })
+                                  : '—'}
+                              </span>
+                              {' · '}Novo salário:{' '}
+                              <span className="font-medium">
+                                {(it.salario_novo ?? salarioRef) != null
+                                  ? Number(it.salario_novo ?? salarioRef).toLocaleString(
+                                      'pt-BR',
+                                      { style: 'currency', currency: 'BRL' },
+                                    )
+                                  : '—'}
+                              </span>
+                            </p>
 
                             <div className="pt-2 border-t space-y-2">
                               <div className="flex items-center gap-3 flex-wrap">

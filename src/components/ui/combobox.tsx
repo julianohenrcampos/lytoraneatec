@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
@@ -22,7 +23,12 @@ import {
 export interface ComboboxOption {
   value: string
   label: string
+  /** Texto opcional usado para filtro (concatena termos alternativos, ex.: código + nome). Se ausente, usa label. */
+  searchText?: string
+  /** Nome do grupo para renderizar opções agrupadas (opcional). */
+  group?: string
 }
+
 
 interface ComboboxProps {
   options: ComboboxOption[]
@@ -62,10 +68,12 @@ export function Combobox({
   const filteredOptions = React.useMemo(() => {
     if (onSearchChange) return options;
     if (!inputValue) return options;
-    return options.filter((option) => 
-      option.label.toLowerCase().includes(inputValue.toLowerCase())
+    const q = inputValue.toLowerCase();
+    return options.filter((option) =>
+      (option.searchText ?? option.label).toLowerCase().includes(q)
     );
   }, [options, inputValue, onSearchChange]);
+
 
   const handleInputValueChange = React.useCallback((v: string) => {
     setInputValue(v);
@@ -101,13 +109,12 @@ export function Combobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent 
-        className="w-[var(--radix-popover-trigger-width)] p-0 z-[10000] bg-popover text-popover-foreground shadow-xl border pointer-events-auto" 
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-24px)] p-0 z-[10000] bg-popover text-popover-foreground shadow-xl border pointer-events-auto"
         align="start"
         side="bottom"
         avoidCollisions={false}
         sideOffset={4}
-        style={{ minWidth: '300px' }}
       >
         <Command shouldFilter={false} className="pointer-events-auto">
           <div className="flex items-center border-b px-3 pointer-events-auto">
@@ -124,35 +131,50 @@ export function Combobox({
             style={{ pointerEvents: 'auto' }}
           >
             <CommandEmpty>{emptyText}</CommandEmpty>
-            {filteredOptions.map((option) => (
-              <CommandItem
-                key={option.value}
-                value={option.value}
-                onSelect={(currentValue) => {
-                  console.log("🖱️ CommandItem onSelect:", currentValue, option.label);
-                  handleSelect(option.value);
-                }}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  console.log("🖱️ CommandItem onClick:", option.value, option.label);
-                  handleSelect(option.value);
-                }}
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                }}
-                className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
-                style={{ pointerEvents: 'auto' }}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4 shrink-0 pointer-events-none",
-                    value === option.value ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <span className="flex-1 pointer-events-none">{option.label}</span>
-              </CommandItem>
-            ))}
+            {(() => {
+              const hasGroups = filteredOptions.some((o) => !!o.group);
+              const renderItem = (option: ComboboxOption) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={() => handleSelect(option.value)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSelect(option.value);
+                  }}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                  }}
+                  className="cursor-pointer hover:bg-accent hover:text-accent-foreground py-2.5 px-3 select-none"
+                  style={{ pointerEvents: 'auto' }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4 shrink-0 pointer-events-none",
+                      value === option.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span className="flex-1 pointer-events-none">{option.label}</span>
+                </CommandItem>
+              );
+
+              if (!hasGroups) {
+                return filteredOptions.map(renderItem);
+              }
+
+              const groups = new Map<string, ComboboxOption[]>();
+              for (const opt of filteredOptions) {
+                const g = opt.group || "Outros";
+                if (!groups.has(g)) groups.set(g, []);
+                groups.get(g)!.push(opt);
+              }
+              return Array.from(groups.entries()).map(([groupName, items]) => (
+                <CommandGroup key={groupName} heading={groupName}>
+                  {items.map(renderItem)}
+                </CommandGroup>
+              ));
+            })()}
           </CommandList>
         </Command>
       </PopoverContent>

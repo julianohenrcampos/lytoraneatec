@@ -58,7 +58,11 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
     loadEquipeMembers,
     loadExistingApontamento,
     apontamentosCarregados,
-    loadingEquipeError
+    loadingEquipeError,
+    liberarColaborador,
+    adicionarAvulso,
+    selecionarTodos,
+    marcarSaidaTodos,
   } = useApontamentoEquipeForm({
     currentApontamento,
     onSubmit: (data: ApontamentoEquipeFormValues) => {
@@ -159,7 +163,7 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] w-full max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[860px] w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             {currentApontamento ? "Editar Apontamento" : "Novo Apontamento"}
@@ -208,6 +212,10 @@ const ApontamentoEquipeForm: React.FC<ApontamentoEquipeFormProps> = ({
               avaliacaoStatusMap={avaliacaoStatusMap}
               alertMessage={alertMessage}
               isEditing={isEditing}
+              onLiberar={liberarColaborador}
+              onAdicionarAvulso={adicionarAvulso}
+              onSelecionarTodos={selecionarTodos}
+              onSaidaTodos={marcarSaidaTodos}
             />
 
             <DialogFooter className="sm:justify-between flex-col sm:flex-row gap-3 mt-6 pt-4 border-t">

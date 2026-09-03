@@ -58,7 +58,9 @@ export const useVeiculoActions = (initialSituacaoFilter?: string | null) => {
 
   const {
     createVeiculo,
+    createVeiculoAsync,
     updateVeiculo,
+    updateVeiculoAsync,
     deleteVeiculo,
     importVeiculos,
     isCreating,
@@ -101,12 +103,15 @@ export const useVeiculoActions = (initialSituacaoFilter?: string | null) => {
 
   const handleSaveVeiculo = async (id: string | undefined, data: any) => {
     setIsSubmitting(true);
-    if (id) {
-      await updateVeiculo(id, data);
-    } else {
-      await createVeiculo(data);
+    try {
+      if (id) {
+        await updateVeiculoAsync(id, data);
+      } else {
+        await createVeiculoAsync(data);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   return {

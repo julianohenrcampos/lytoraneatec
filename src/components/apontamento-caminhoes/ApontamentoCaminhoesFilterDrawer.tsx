@@ -4,26 +4,20 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePickerWithRange } from "@/components/ui/date-picker-range";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { DateRange } from "react-day-picker";
 import { ApontamentoFilterParams } from "@/services/apontamentoCaminhoesService";
 import { format } from "date-fns";
-import { FilterX, Search } from "lucide-react";
+import { FilterX } from "lucide-react";
 
 interface ApontamentoCaminhoesFilterDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onApplyFilters: (filters: ApontamentoFilterParams) => void;
   onClearFilters: () => void;
-  veiculosOptions: { id: string; label: string; }[];
-  operadoresOptions?: { id: string; label: string; }[];
-  centrosCustoOptions?: { id: string; label: string; }[];
+  veiculosOptions: { id: string; label: string; searchText?: string }[];
+  operadoresOptions?: { id: string; label: string; searchText?: string }[];
+  centrosCustoOptions?: { id: string; label: string; searchText?: string }[];
   isLoading?: boolean;
 }
 
@@ -109,62 +103,50 @@ const ApontamentoCaminhoesFilterDrawer: React.FC<ApontamentoCaminhoesFilterDrawe
 
           <div className="space-y-2">
             <Label htmlFor="caminhao-mobile" className="font-medium text-gray-700">Caminhão/Equipamento</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
-              <Select value={caminhaoId} onValueChange={setCaminhaoId}>
-                <SelectTrigger id="caminhao-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {veiculosOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...veiculosOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={caminhaoId}
+              onChange={setCaminhaoId}
+              placeholder="Selecione"
+              searchPlaceholder="Buscar veículo..."
+              emptyText="Nenhum veículo encontrado"
+              className="h-12 border border-slate-300 bg-white"
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="operador-mobile" className="font-medium text-gray-700">Operador</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
-              <Select value={operadorId} onValueChange={setOperadorId}>
-                <SelectTrigger id="operador-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {operadoresOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...operadoresOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={operadorId}
+              onChange={setOperadorId}
+              placeholder="Selecione"
+              searchPlaceholder="Buscar operador..."
+              emptyText="Nenhum operador encontrado"
+              className="h-12 border border-slate-300 bg-white"
+            />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="centro-custo-mobile" className="font-medium text-gray-700">Centro de Custo</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-3.5 h-5 w-5 text-muted-foreground" />
-              <Select value={centroCustoId} onValueChange={setCentroCustoId}>
-                <SelectTrigger id="centro-custo-mobile" className="pl-10 h-12 border border-slate-300 bg-white">
-                  <SelectValue placeholder="Selecione" />
-                </SelectTrigger>
-                <SelectContent className="bg-white">
-                  <SelectItem value="_all">Todos</SelectItem>
-                  {centrosCustoOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Combobox
+              options={[
+                { value: "_all", label: "Todos" },
+                ...centrosCustoOptions.map((o) => ({ value: o.id, label: o.label, searchText: o.searchText ?? o.label })),
+              ]}
+              value={centroCustoId}
+              onChange={setCentroCustoId}
+              placeholder="Selecione"
+              searchPlaceholder="Buscar centro de custo..."
+              emptyText="Nenhum centro de custo encontrado"
+              className="h-12 border border-slate-300 bg-white"
+            />
           </div>
         </div>
 
