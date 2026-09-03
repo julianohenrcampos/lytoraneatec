@@ -27,14 +27,22 @@ import {
   CT_VIAGEM_STATUS_LABELS,
 } from "@/types/centralTransporteMobilizacao";
 import { formatDateBR } from "@/utils/formatDateBR";
+import { formatProtocolo } from "@/utils/formatProtocolo";
 import CtSolicitacaoTimeline from "./CtSolicitacaoTimeline";
 import { useCtSolicitacao } from "./CentralTransporteSolicitacaoProvider";
 
 export const EtapaRevisao: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { solicitacaoId, mobilizacao, mobilizacaoDraft, capabilities, ctOperation, irParaEtapa } =
-    useCtSolicitacao();
+  const {
+    solicitacaoId,
+    solicitacao,
+    mobilizacao,
+    mobilizacaoDraft,
+    capabilities,
+    ctOperation,
+    irParaEtapa,
+  } = useCtSolicitacao();
   const [enviando, setEnviando] = useState(false);
 
   const estado = mobilizacao.estado;
@@ -59,6 +67,11 @@ export const EtapaRevisao: React.FC = () => {
     const planejados = new Set(viagens.flatMap((v) => v.atendimentoIds));
     return (estado?.ativos ?? []).filter((a) => !planejados.has(a.atendimentoId));
   }, [estado, viagens]);
+
+  // T21 — contagens derivadas da versão persistida (nada inferido visualmente).
+  const totalAtivos = estado?.ativos.length ?? 0;
+  const rotasCalculadas = viagens.filter((v) => v.distanciaRotaKm !== null).length;
+
 
 
   const programar = async () => {
@@ -144,7 +157,7 @@ export const EtapaRevisao: React.FC = () => {
     <div className="space-y-4" data-testid="ct3c-etapa-revisao">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold">Revisão da mobilização</h2>
+          <h2 className="text-sm font-semibold">Confirmar atendimento</h2>
           <Badge variant="outline" className="text-[10px]">
             Versão {planejamento.versao} —{" "}
             {CT_PLANEJAMENTO_STATUS_LABELS[planejamento.status] ?? planejamento.status}
@@ -152,7 +165,7 @@ export const EtapaRevisao: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" className="gap-2" onClick={() => irParaEtapa("MOBILIZACAO")}>
-            <ArrowLeft className="h-4 w-4" /> Voltar e editar
+            <ArrowLeft className="h-4 w-4" /> Voltar para Transporte
           </Button>
           {!!rascunho && capabilities.canEditar && (
             <Button
@@ -174,11 +187,122 @@ export const EtapaRevisao: React.FC = () => {
               onClick={programar}
             >
               {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              Programar mobilização
+              Programar atendimento
             </Button>
           )}
         </div>
       </div>
+
+      {/* T21 — resumo executivo: linguagem operacional, sem inspeção técnica. */}
+      <Card data-testid="ct5-resumo-executivo">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex flex-wrap items-center gap-2 text-xs font-medium">
+            <span className="font-mono">
+              {solicitacao?.chamado_protocolo || formatProtocolo(solicitacaoId)}
+            </span>
+            {solicitacao?.chamado_protocolo && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                Ref. {formatProtocolo(solicitacaoId)}
+              </span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-xs">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Atendimento
+          </p>
+          <p data-testid="ct5-resumo-contagem">
+            {totalAtivos - ativosPendentes.length} de {totalAtivos} ativos definidos
+          </p>
+
+          <ul className="space-y-2">
+            {viagens.flatMap((v) =>
+              v.atendimentoIds.map((at) => (
+                <li key={`${v.id}-${at}`} className="rounded-md border p-2">
+                  <p className="font-medium">{rotuloPorAtendimento.get(at) ?? "Ativo fora do seu escopo"}</p>
+                  <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-2">
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Deslocamento</dt>
+                      <dd>
+                        {v.modalidade ? CT_MODALIDADE_LABELS[v.modalidade] : "—"}
+                        {v.tipoTransporte ? ` — ${CT_TIPO_TRANSPORTE_LABELS[v.tipoTransporte]}` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Motorista</dt>
+                      <dd>{v.motoristaNomeSnapshot ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Origem</dt>
+                      <dd>
+                        {[v.origemCcCodigoSnapshot, v.origemCcNomeSnapshot]
+                          .filter(Boolean)
+                          .join(" — ") || "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Destino</dt>
+                      <dd>
+                        {[v.destinoCcCodigoSnapshot, v.destinoCcNomeSnapshot]
+                          .filter(Boolean)
+                          .join(" — ") || "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Data</dt>
+                      <dd>
+                        {v.dataPrevistaEntrega ? formatDateBR(v.dataPrevistaEntrega) : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[10px] uppercase text-muted-foreground">Rota</dt>
+                      <dd>
+                        {v.distanciaRotaKm !== null
+                          ? `${v.distanciaRotaKm} km${
+                              v.duracaoRotaMin !== null ? ` · ${v.duracaoRotaMin} min` : ""
+                            }`
+                          : "Não definida"}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              )),
+            )}
+          </ul>
+
+          <div className="grid gap-2 border-t pt-2 sm:grid-cols-3">
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Rotas</p>
+              <p>
+                {rotasCalculadas} de {viagens.length} calculadas
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Recebedores</p>
+              <p>
+                {viagens
+                  .map((v) => v.recebedorPrevistoNomeSnapshot)
+                  .filter(Boolean)
+                  .join(", ") || "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase text-muted-foreground">Pendências</p>
+              {/* Nunca "✓ Nenhuma" por inferência: fonte é validarProgramacao. */}
+              {problemas.length === 0 ? (
+                <p className="text-emerald-700 dark:text-emerald-300" data-testid="ct5-sem-pendencias">
+                  ✓ Nenhuma
+                </p>
+              ) : (
+                <p className="text-destructive" data-testid="ct5-com-pendencias">
+                  {problemas.length} pendência(s)
+                </p>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
 
       {programado && (
         <Alert data-testid="ct3c-revisao-programada">

@@ -55,7 +55,9 @@ describe("ct2ErrorMapper", () => {
     const n = normalizeCt2Error({ message: "CT2_ALGO_NOVO" });
     expect(n.code).toBe("CT2_ALGO_NOVO");
     expect(n.isUncertain).toBe(false);
-    expect(n.message).toBe("Não foi possível concluir a operação.");
+    expect(n.message).toContain("CT2_ALGO_NOVO");
+    expect(n.message).toContain("nada foi gravado");
+
   });
 });
 

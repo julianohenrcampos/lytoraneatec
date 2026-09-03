@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { filtrarPorBusca } from "@/utils/central-transporte/filtroCentralTransporte";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { CT3B_SOLICITACAO_PAGE_ENABLED } from "@/config/ct3Flags";
@@ -33,6 +34,8 @@ export type CentralTransporteFilterState = {
   prioridade?: string;
   tipo_equipamento_id?: string;
   status_fluxo?: string;
+  /** T24–T26 — atendimento preferencial da SOLICITAÇÃO (não do CC). */
+  atendimento_preferencial?: string;
 };
 
 const CentralTransportePage: React.FC = () => {
@@ -41,6 +44,7 @@ const CentralTransportePage: React.FC = () => {
   const [filters, setFilters] = useState<CentralTransporteFilterState>(() =>
     lerFiltrosDoState(location.state),
   );
+  const [busca, setBusca] = useState("");
   const [selected, setSelected] = useState<SelectedContext | null>(null);
   const { userId } = useAuth();
   const navigate = useNavigate();
@@ -58,6 +62,9 @@ const CentralTransportePage: React.FC = () => {
     queryKey: ["central-transporte", filters],
     queryFn: () => fetchSolicitacoesTransporte(filters),
   });
+
+  // T27 — busca sobre o conjunto JÁ carregado: nenhuma query extra, nenhum N+1.
+  const linhas = useMemo(() => filtrarPorBusca(data ?? [], busca), [data, busca]);
 
   const handleSelect = (s: SolicitacaoTransporteComItens, item?: SolicitacaoItem) => {
     // CT-3B: com a flag ligada, a análise passa a ser uma página dedicada.
@@ -97,12 +104,17 @@ const CentralTransportePage: React.FC = () => {
 
 
         <TabsContent value="solicitacoes" className="space-y-4">
-          <CentralTransporteFilters filters={filters} onChange={setFilters} />
+          <CentralTransporteFilters
+            filters={filters}
+            onChange={setFilters}
+            busca={busca}
+            onBuscaChange={setBusca}
+          />
 
           {isLoading ? (
             <div className="text-center py-12 text-muted-foreground">Carregando...</div>
           ) : (
-            <CentralTransporteTable data={data || []} onSelect={handleSelect} />
+            <CentralTransporteTable data={linhas} onSelect={handleSelect} />
           )}
         </TabsContent>
 

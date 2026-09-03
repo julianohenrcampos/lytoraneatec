@@ -28,8 +28,66 @@ import type { CtOrdemMotorista } from "@/types/centralTransporteMobilizacao";
 const dataBR = (iso: string | null): string =>
   iso ? formatBrazilianDateForDisplay(iso) : "Sem data";
 
-const OrdemCard: React.FC<{ ordem: CtOrdemMotorista }> = ({ ordem }) => {
+/**
+ * CT-3F — Acompanhamento somente leitura de uma entrega em trânsito.
+ * Nenhuma ação operacional do motorista é oferecida aqui; o recebimento só nasce
+ * depois que o servidor registra a chegada (status AGUARDANDO_RECEBIMENTO).
+ */
+const ResumoAcompanhamento: React.FC<{ ordem: CtOrdemMotorista }> = ({ ordem }) => {
+  const [aberto, setAberto] = React.useState(false);
+  return (
+    <div className="space-y-2">
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 gap-1 text-[11px]"
+        onClick={() => setAberto((v) => !v)}
+        data-testid={`ct3f-acompanhar-${ordem.id}`}
+      >
+        <Navigation className="h-3.5 w-3.5" /> {aberto ? "Ocultar" : "Acompanhar"}
+      </Button>
+      {aberto && (
+        <div
+          className="space-y-1 rounded-md border bg-muted/30 p-2 text-[11px] text-muted-foreground"
+          data-testid={`ct3f-acompanhamento-${ordem.id}`}
+        >
+          <p>
+            <span className="font-medium text-foreground">Viagem:</span>{" "}
+            {ordem.codigo || "Sem código"} · {ordem.status}
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Motorista:</span>{" "}
+            {ordem.motoristaNome ?? "Não informado"}
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Recebedor:</span>{" "}
+            {ordem.recebedorPrevistoNome ?? "Não informado"}
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Origem:</span>{" "}
+            {ordem.origemCentroCusto ?? ordem.origemEndereco ?? "Não informada"}
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Destino:</span>{" "}
+            {ordem.destinoCentroCusto ?? ordem.destinoEndereco ?? "Não informado"}
+          </p>
+          <p>
+            <span className="font-medium text-foreground">Previsão de entrega:</span>{" "}
+            {dataBR(ordem.dataPrevistaEntrega)}
+          </p>
+          <p>A conferência do recebimento fica disponível quando o motorista registrar a chegada.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const OrdemCard: React.FC<{ ordem: CtOrdemMotorista; somenteLeitura?: boolean }> = ({
+  ordem,
+  somenteLeitura = false,
+}) => {
   const rota = linkRotaExterna(ordem);
+
   return (
     <Card data-testid={`ct3d-ordem-${ordem.id}`}>
       <CardHeader className="pb-2">
@@ -156,7 +214,12 @@ const OrdemCard: React.FC<{ ordem: CtOrdemMotorista }> = ({ ordem }) => {
           )}
         </div>
 
-        <AcoesViagem ordem={ordem} />
+        {somenteLeitura ? (
+          <ResumoAcompanhamento ordem={ordem} />
+        ) : (
+          <AcoesViagem ordem={ordem} />
+        )}
+
       </CardContent>
     </Card>
   );
@@ -222,8 +285,11 @@ const MinhasMobilizacoes: React.FC = () => {
             )}
             <TabsTrigger value="recebimentos" className="flex-1 text-xs">
               Recebimentos
-              {recebimentos.ordens.length > 0 ? ` (${recebimentos.ordens.length})` : ""}
+              {recebimentos.ordens.length + recebimentos.aCaminho.length > 0
+                ? ` (${recebimentos.ordens.length + recebimentos.aCaminho.length})`
+                : ""}
             </TabsTrigger>
+
           </TabsList>
 
           <TabsContent value="minhas" className="space-y-4 pt-3">
@@ -300,7 +366,9 @@ const MinhasMobilizacoes: React.FC = () => {
                     : "Erro inesperado."}
                 </AlertDescription>
               </Alert>
-            ) : recebimentos.ordens.length === 0 ? (
+            ) : recebimentos.ordens.length === 0 &&
+              recebimentos.aCaminho.length === 0 &&
+              recebimentos.concluidos.length === 0 ? (
               <Alert data-testid="ct3f-sem-recebimentos">
                 <AlertTitle className="text-xs">Nenhum recebimento pendente</AlertTitle>
                 <AlertDescription className="text-xs">
@@ -309,8 +377,78 @@ const MinhasMobilizacoes: React.FC = () => {
                 </AlertDescription>
               </Alert>
             ) : (
-              recebimentos.ordens.map((o) => <OrdemCard key={o.id} ordem={o} />)
+              <>
+                <section className="space-y-2" data-testid="ct3f-secao-a-caminho">
+                  <h2 className="text-sm font-semibold">
+                    A caminho para você{" "}
+                    <span className="text-muted-foreground">({recebimentos.aCaminho.length})</span>
+                  </h2>
+                  {recebimentos.aCaminho.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma entrega em trânsito para você.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground" data-testid="ct3f-aviso-a-caminho">
+                        {recebimentos.aCaminho.length === 1
+                          ? "1 entrega está a caminho para você."
+                          : `${recebimentos.aCaminho.length} entregas estão a caminho para você.`}
+                      </p>
+                      <div className="space-y-3">
+                        {recebimentos.aCaminho.map((o) => (
+                          <OrdemCard key={o.id} ordem={o} somenteLeitura />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </section>
+
+                <section className="space-y-2" data-testid="ct3f-secao-aguardando">
+                  <h2 className="text-sm font-semibold">
+                    Aguardando recebimento{" "}
+                    <span className="text-muted-foreground">({recebimentos.ordens.length})</span>
+                  </h2>
+                  {recebimentos.ordens.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhuma viagem aguardando sua conferência.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {recebimentos.ordens.map((o) => (
+                        <OrdemCard key={o.id} ordem={o} />
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="space-y-2" data-testid="ct3f-secao-recebidos">
+                  <h2 className="text-sm font-semibold">
+                    Recebidos{" "}
+                    <span className="text-muted-foreground">
+                      ({recebimentos.concluidos.length})
+                    </span>
+                  </h2>
+                  {recebimentos.concluidos.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum recebimento concluído nos últimos 30 dias.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground" data-testid="ct3f-aviso-recebidos">
+                        Histórico somente leitura: recebimentos já concluídos não podem ser
+                        alterados.
+                      </p>
+                      <div className="space-y-3">
+                        {recebimentos.concluidos.map((o) => (
+                          <OrdemCard key={o.id} ordem={o} somenteLeitura />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </section>
+              </>
             )}
+
           </TabsContent>
         </Tabs>
       </div>

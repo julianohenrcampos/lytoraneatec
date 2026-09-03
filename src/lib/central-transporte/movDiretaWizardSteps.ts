@@ -4,22 +4,24 @@
  * SOMENTE apresentação: reaproveita os mesmos invariantes já cobrados por
  * `validarRascunho`, apenas particionados por etapa para permitir/bloquear o
  * avanço. Nada aqui altera payload, RPC ou validação server-side.
+ *
+ * A antiga etapa visual "Origem da coleta" foi absorvida pelo Movimentação
+ * Builder: os DADOS da origem continuam idênticos no rascunho e nas RPCs.
  */
 import type { CtMovDiretaRascunho } from "@/types/centralTransporteMovDireta";
 import { ativosSemParada } from "./movDiretaRascunho";
 
-export type MovDiretaEtapa = "ORIGEM" | "PARADAS" | "REVISAO";
+export type MovDiretaEtapa = "MONTAGEM" | "REVISAO";
 
 export const ETAPAS: { id: MovDiretaEtapa; label: string }[] = [
-  { id: "ORIGEM", label: "Origem da coleta" },
-  { id: "PARADAS", label: "Paradas de entrega" },
-  { id: "REVISAO", label: "Revisão" },
+  { id: "MONTAGEM", label: "Montar movimentação" },
+  { id: "REVISAO", label: "Revisar" },
 ];
 
 export const indiceEtapa = (etapa: MovDiretaEtapa): number =>
   ETAPAS.findIndex((e) => e.id === etapa);
 
-/** Invariantes da etapa 1 (subconjunto de validarRascunho/PROGRAMAR). */
+/** Invariantes da viagem (subconjunto de validarRascunho/PROGRAMAR). */
 export const errosEtapaOrigem = (r: CtMovDiretaRascunho): string[] => {
   const erros: string[] = [];
   if (!r.dataPrevistaSaida) erros.push("Informe a data prevista de saída.");
@@ -32,7 +34,7 @@ export const errosEtapaOrigem = (r: CtMovDiretaRascunho): string[] => {
   return erros;
 };
 
-/** Invariantes da etapa 2 (paradas e ativos entregues). */
+/** Invariantes das paradas e ativos entregues. */
 export const errosEtapaParadas = (r: CtMovDiretaRascunho): string[] => {
   const erros: string[] = [];
   if (r.paradas.length === 0) erros.push("Adicione ao menos uma parada de entrega.");
@@ -46,9 +48,6 @@ export const errosEtapaParadas = (r: CtMovDiretaRascunho): string[] => {
   return erros;
 };
 
+/** Montagem reúne origem + paradas; revisão não bloqueia (o servidor decide). */
 export const errosDaEtapa = (r: CtMovDiretaRascunho, etapa: MovDiretaEtapa): string[] =>
-  etapa === "ORIGEM"
-    ? errosEtapaOrigem(r)
-    : etapa === "PARADAS"
-      ? errosEtapaParadas(r)
-      : [];
+  etapa === "MONTAGEM" ? [...errosEtapaOrigem(r), ...errosEtapaParadas(r)] : [];

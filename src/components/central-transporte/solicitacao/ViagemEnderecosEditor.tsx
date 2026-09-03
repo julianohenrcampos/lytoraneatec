@@ -32,6 +32,11 @@ import {
 } from "@/lib/central-transporte/distanciaOperacional";
 import type { CtViagemRascunho } from "@/types/centralTransporteMobilizacao";
 import useCtFuncionariosComUsuario from "@/hooks/central-transporte/useCtFuncionariosComUsuario";
+import {
+  assinaturaRota,
+  ladosSemGeolocalizacao,
+  temRotaAplicada,
+} from "@/utils/central-transporte/autoPreencherViagem";
 
 export const RECEBEDOR_MANUAL = "__manual__";
 
@@ -118,17 +123,21 @@ export const ViagemEnderecosEditor: React.FC<ViagemEnderecosEditorProps> = ({
       distanciaKm: String(distanciaOperacional(r.distanciaKm) ?? ""),
     });
 
-  const calcularRota = async () => {
-    setCalculando(true);
-    setRotaIndisponivel(false);
-    const rotas = await calcularAlternativasRota(
+  const coordsAtuais = () =>
+    [
       viagem.origemColetaLatitude !== null && viagem.origemColetaLongitude !== null
         ? { latitude: viagem.origemColetaLatitude, longitude: viagem.origemColetaLongitude }
         : null,
       viagem.destinoDescargaLatitude !== null && viagem.destinoDescargaLongitude !== null
         ? { latitude: viagem.destinoDescargaLatitude, longitude: viagem.destinoDescargaLongitude }
         : null,
-    );
+    ] as const;
+
+  const calcularRota = async () => {
+    setCalculando(true);
+    setRotaIndisponivel(false);
+    const [o, d] = coordsAtuais();
+    const rotas = await calcularAlternativasRota(o, d);
     setCalculando(false);
     if (!rotas || rotas.length === 0) {
       setAlternativas([]);
@@ -138,6 +147,62 @@ export const ViagemEnderecosEditor: React.FC<ViagemEnderecosEditorProps> = ({
     setAlternativas(rotas);
     aplicarRota(rotas[0]);
   };
+
+  /**
+   * T19 — rota automática pela MESMA camada Mapbox (`calcularAlternativasRota`).
+   *
+   * ANTI-LOOP / ANTI-CONSUMO: a assinatura `origemLat|origemLng|destinoLat|
+   * destinoLng` é guardada em ref. Só há UMA chamada por assinatura, e a
+   * aplicação da rota não altera coordenada — portanto não re-dispara o efeito.
+   *
+   * T20 — sem as quatro coordenadas a assinatura é null e o Mapbox NÃO é
+   * chamado: aparece o aviso funcional e o ajuste manual pelo mapa.
+   */
+  const assinaturaCalculadaRef = React.useRef<string | null>(null);
+  const [rotaAutomatica, setRotaAutomatica] = React.useState(false);
+
+  React.useEffect(() => {
+    const assinatura = assinaturaRota(viagem);
+    if (!assinatura) return;
+    if (assinaturaCalculadaRef.current === assinatura) return;
+
+    // Rota já aplicada/persistida para esta combinação: nada a recalcular.
+    if (assinaturaCalculadaRef.current === null && temRotaAplicada(viagem)) {
+      assinaturaCalculadaRef.current = assinatura;
+      return;
+    }
+    if (somenteLeitura) return;
+
+    assinaturaCalculadaRef.current = assinatura;
+    let cancelado = false;
+    void (async () => {
+      setCalculando(true);
+      setRotaIndisponivel(false);
+      const [o, d] = coordsAtuais();
+      const rotas = await calcularAlternativasRota(o, d);
+      if (cancelado) return;
+      setCalculando(false);
+      if (!rotas || rotas.length === 0) {
+        setRotaIndisponivel(true);
+        return;
+      }
+      setAlternativas(rotas);
+      aplicarRota(rotas[0]);
+      setRotaAutomatica(true);
+    })();
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viagem.origemColetaLatitude,
+    viagem.origemColetaLongitude,
+    viagem.destinoDescargaLatitude,
+    viagem.destinoDescargaLongitude,
+    somenteLeitura,
+  ]);
+
+  const ladosSemGeo = ladosSemGeolocalizacao(viagem);
 
   const bloco = (lado: "origem" | "destino") => {
     const isOrigem = lado === "origem";
@@ -256,17 +321,60 @@ export const ViagemEnderecosEditor: React.FC<ViagemEnderecosEditorProps> = ({
               onClick={calcularRota}
             >
               <Route className="h-3.5 w-3.5" />
-              {calculando ? "Calculando..." : "Calcular alternativas de rota"}
+              {calculando ? "Calculando..." : "Ajustar rota"}
             </Button>
           )}
         </div>
 
-        {rotaIndisponivel && (
+        {/* T20 — coordenada ausente é declarada, nunca inventada. */}
+        {ladosSemGeo.length > 0 && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2"
+            data-testid={`ct5-aviso-cc-sem-geo-${viagem.chaveLocal}`}
+          >
+            <p className="flex items-start gap-1 text-[11px] text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Localização do Centro de Custo incompleta —{" "}
+              {ladosSemGeo.length === 2
+                ? "origem e destino sem coordenadas"
+                : ladosSemGeo[0] === "origem"
+                  ? "origem sem coordenadas"
+                  : "destino sem coordenadas"}
+              . A rota só é calculada após definir o ponto.
+            </p>
+            {!somenteLeitura && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-[11px]"
+                data-testid={`ct5-definir-ponto-mapa-${viagem.chaveLocal}`}
+                onClick={() => setMapaAberto(ladosSemGeo[0])}
+              >
+                Definir ponto no mapa
+              </Button>
+            )}
+          </div>
+        )}
+
+        {rotaAutomatica && viagem.distanciaRotaKm !== null && (
+          <p
+            className="text-[11px] text-emerald-700 dark:text-emerald-300"
+            data-testid={`ct5-rota-automatica-${viagem.chaveLocal}`}
+          >
+            ✓ Rota sugerida automaticamente · Distância:{" "}
+            {viagem.distanciaRotaKm.toFixed(1).replace(".", ",")} km
+            {viagem.duracaoRotaMin !== null
+              ? ` · Tempo estimado: ${duracaoTexto(viagem.duracaoRotaMin)}`
+              : ""}
+          </p>
+        )}
+
+        {rotaIndisponivel && ladosSemGeo.length === 0 && (
           <p
             className="text-[11px] text-muted-foreground"
             data-testid={`ct3d-rota-nao-calculada-${viagem.chaveLocal}`}
           >
-            Rota não calculada — informe os pontos exatos de coleta e entrega.
+            Rota não calculada — o serviço de rotas não respondeu para estes pontos.
           </p>
         )}
 

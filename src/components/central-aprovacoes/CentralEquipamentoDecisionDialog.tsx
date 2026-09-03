@@ -28,7 +28,7 @@ export default function CentralEquipamentoDecisionDialog({ open, onOpenChange, i
 
   const isReprovar = mode === 'reprovar';
   const isAutoApproval = mode === 'aprovar' && item.autoApproval;
-  const exigeComentario = isReprovar || isAutoApproval;
+  const exigeComentario = isReprovar;
   const comentarioValido = !exigeComentario || comentario.trim().length >= 10;
 
   const handleConfirm = () => {

@@ -27,6 +27,8 @@ import {
   type CtViagemRascunho,
 } from "@/types/centralTransporteMobilizacao";
 import { rotuloAtivo } from "@/lib/central-transporte/mobilizacaoRascunho";
+import { patchDataUnica } from "@/lib/central-transporte/transportBuilder";
+import { rotuloCc, type CcGeoInfo } from "@/utils/central-transporte/autoPreencherViagem";
 import ViagemEnderecosEditor from "./ViagemEnderecosEditor";
 
 const MODALIDADES: CtModalidade[] = ["RODANTE", "TRANSPORTADO"];
@@ -47,6 +49,9 @@ export interface ViagemCardEditorProps {
   /** CT-3D — endereço cadastrado dos CCs escolhidos (null quando ausente). */
   origemCcEndereco: string | null;
   destinoCcEndereco: string | null;
+  /** T14/T15 — cadastro do CC (código/nome/coordenadas) para leitura resumida. */
+  origemCc?: CcGeoInfo | null;
+  destinoCc?: CcGeoInfo | null;
   onPatch: (patch: Partial<CtViagemRascunho>) => void;
   onRemover: () => void;
   onRemoverAtivo: (atendimentoId: string) => void;
@@ -61,6 +66,8 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
   cadastros,
   origemCcEndereco,
   destinoCcEndereco,
+  origemCc = null,
+  destinoCc = null,
   onPatch,
   onRemover,
   onRemoverAtivo,
@@ -103,40 +110,78 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
       </CardHeader>
 
       <CardContent className="space-y-3 text-xs">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label className="text-[11px]">Modalidade</Label>
-            <Combobox
-              disabled={somenteLeitura}
-              value={viagem.modalidade ?? ""}
-              placeholder="Selecione a modalidade"
-              options={MODALIDADES.map((m) => ({ value: m, label: CT_MODALIDADE_LABELS[m] }))}
-              onChange={(v) =>
-                onPatch({
-                  modalidade: (v || null) as CtModalidade | null,
-                  tipoTransporte: v === "TRANSPORTADO" ? viagem.tipoTransporte : null,
-                })
-              }
-            />
+        {/* T14/T15 — origem e destino já resolvidos: leitura, não digitação. */}
+        <div className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Origem</p>
+            <p className="font-medium" data-testid={`ct5-origem-resumo-${viagem.chaveLocal}`}>
+              {rotuloCc(origemCc)}
+            </p>
           </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Destino</p>
+            <p className="font-medium" data-testid={`ct5-destino-resumo-${viagem.chaveLocal}`}>
+              {rotuloCc(destinoCc)}
+            </p>
+          </div>
+        </div>
 
-          {transportado && (
-            <div className="space-y-1">
-              <Label className="text-[11px]">Tipo de transporte</Label>
-              <Combobox
+        {/* Pergunta operacional principal (T16/T17/T18). */}
+        <div className="space-y-1">
+          <Label className="text-[11px]">Como o equipamento chegará? *</Label>
+          <div className="flex flex-wrap gap-2">
+            {MODALIDADES.map((m) => (
+              <Button
+                key={m}
+                type="button"
+                size="sm"
+                variant={viagem.modalidade === m ? "default" : "outline"}
                 disabled={somenteLeitura}
-                value={viagem.tipoTransporte ?? ""}
-                placeholder="Próprio ou terceiro"
-                options={TIPOS.map((t) => ({ value: t, label: CT_TIPO_TRANSPORTE_LABELS[t] }))}
-                onChange={(v) => onPatch({ tipoTransporte: (v || null) as CtTipoTransporte | null })}
-              />
+                data-testid={`ct5-modalidade-${m.toLowerCase()}-${viagem.chaveLocal}`}
+                onClick={() =>
+                  onPatch({
+                    modalidade: m,
+                    // RODANTE não tem tipo de transporte — o campo continua no
+                    // modelo, apenas não se aplica.
+                    tipoTransporte: m === "TRANSPORTADO" ? viagem.tipoTransporte : null,
+                  })
+                }
+              >
+                {CT_MODALIDADE_LABELS[m]}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          {transportado && (
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-[11px]">Tipo de transporte *</Label>
+              <div className="flex flex-wrap gap-2">
+                {TIPOS.map((t) => (
+                  <Button
+                    key={t}
+                    type="button"
+                    size="sm"
+                    variant={viagem.tipoTransporte === t ? "default" : "outline"}
+                    disabled={somenteLeitura}
+                    data-testid={`ct5-tipo-${t.toLowerCase()}-${viagem.chaveLocal}`}
+                    onClick={() => onPatch({ tipoTransporte: t })}
+                  >
+                    {CT_TIPO_TRANSPORTE_LABELS[t]}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
 
+
           {exigeMotoristaCadastrado && (
-            <div className="space-y-1">
+            <div className="space-y-1" data-testid={`ct5-campo-motorista-${viagem.chaveLocal}`}>
               <Label className="text-[11px]">
-                {viagem.modalidade === "RODANTE" ? "Motorista / operador" : "Motorista do transporte"}
+                {viagem.modalidade === "RODANTE"
+                  ? "Motorista / operador *"
+                  : "Motorista do transporte *"}
               </Label>
               <Combobox
                 disabled={somenteLeitura}
@@ -149,9 +194,10 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
             </div>
           )}
 
+          {/* T16 — RODANTE não renderiza veículo transportador nem transportadora. */}
           {proprio && (
-            <div className="space-y-1">
-              <Label className="text-[11px]">Veículo transportador</Label>
+            <div className="space-y-1" data-testid={`ct5-campo-veiculo-${viagem.chaveLocal}`}>
+              <Label className="text-[11px]">Veículo transportador *</Label>
               <Combobox
                 disabled={somenteLeitura}
                 value={viagem.veiculoTransportadorId ?? ""}
@@ -165,8 +211,8 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
 
           {terceiro && (
             <>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Transportadora</Label>
+              <div className="space-y-1" data-testid={`ct5-campo-empresa-${viagem.chaveLocal}`}>
+                <Label className="text-[11px]">Transportadora *</Label>
                 <Combobox
                   disabled={somenteLeitura}
                   value={viagem.empresaTransportadoraId ?? ""}
@@ -176,8 +222,8 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
                   onChange={(v) => onPatch({ empresaTransportadoraId: v || null })}
                 />
               </div>
-              <div className="space-y-1">
-                <Label className="text-[11px]">Placa do transportador</Label>
+              <div className="space-y-1" data-testid={`ct5-campo-placa-${viagem.chaveLocal}`}>
+                <Label className="text-[11px]">Placa do transportador *</Label>
                 <Input
                   disabled={somenteLeitura}
                   value={viagem.placaTransportador}
@@ -186,7 +232,7 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
                 />
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px]">Motorista do terceiro</Label>
+                <Label className="text-[11px]">Motorista do terceiro *</Label>
                 <Input
                   disabled={somenteLeitura}
                   value={viagem.motoristaNome}
@@ -206,15 +252,8 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
             </>
           )}
 
-          <div className="space-y-1">
-            <Label className="text-[11px]">Saída prevista (opcional)</Label>
-            <Input
-              type="date"
-              disabled={somenteLeitura}
-              value={viagem.dataPrevistaSaida}
-              onChange={(e) => onPatch({ dataPrevistaSaida: e.target.value })}
-            />
-          </div>
+          {/* CT-6 — UMA data de planejamento. `dataPrevistaSaida` continua no
+              contrato do backend e é derivada da data da mobilização. */}
           <div className="space-y-1">
             <Label className="text-[11px]">Data da mobilização</Label>
             <Input
@@ -222,7 +261,7 @@ export const ViagemCardEditor: React.FC<ViagemCardEditorProps> = ({
               disabled={somenteLeitura}
               data-testid={`ct3c-data-mobilizacao-${viagem.chaveLocal}`}
               value={viagem.dataProgramada}
-              onChange={(e) => onPatch({ dataProgramada: e.target.value })}
+              onChange={(e) => onPatch(patchDataUnica(e.target.value))}
             />
           </div>
         </div>

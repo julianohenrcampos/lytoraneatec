@@ -8,9 +8,9 @@ import {
 } from "../movDiretaWizardSteps";
 
 describe("movDiretaWizardSteps", () => {
-  it("tem três etapas na ordem Origem → Paradas → Revisão", () => {
-    expect(ETAPAS.map((e) => e.id)).toEqual(["ORIGEM", "PARADAS", "REVISAO"]);
-    expect(indiceEtapa("REVISAO")).toBe(2);
+  it("tem duas etapas visuais: Montar movimentação → Revisar", () => {
+    expect(ETAPAS.map((e) => e.id)).toEqual(["MONTAGEM", "REVISAO"]);
+    expect(indiceEtapa("REVISAO")).toBe(1);
   });
 
   it("acusa pendências da origem em rascunho vazio", () => {
