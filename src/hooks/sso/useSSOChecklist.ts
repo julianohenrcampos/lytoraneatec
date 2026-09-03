@@ -2,6 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ssoChecklistService } from '@/services/sso/ssoChecklistService';
 import { ssoItemService } from '@/services/sso/ssoItemService';
 import { ssoStorageService } from '@/services/sso/ssoStorageService';
+import {
+  comRetryDeRede,
+  isChaveDuplicada,
+  isErroDeRede,
+  MENSAGEM_SEM_CONEXAO
+} from '@/services/sso/ssoNetwork';
 import { SSOChecklistFormData, SSOChecklistFilters, SSOChecklistItem } from '@/types/sso';
 import { toast } from 'sonner';
 
@@ -31,57 +37,102 @@ export const useSSOChecklist = (checklistId?: string, filters?: SSOChecklistFilt
       itemFiles: Record<string, File[]>;
     }) => {
       const { formData, itens, itemFiles } = params;
-      
-      // 1. Criar checklist
-      const checklist = await ssoChecklistService.create(formData);
-      
-      // 2. Para cada item, criar no banco
+
+      // UUIDs gerados no cliente tornam as duas gravações idempotentes:
+      // se a resposta se perder mas o INSERT tiver chegado ao banco, o
+      // reenvio volta com 23505 e é tratado como sucesso, sem duplicar.
+      const novoChecklistId = crypto.randomUUID();
+      const idPorItem = new Map(itens.map(item => [item.id, crypto.randomUUID()]));
+
+      // 1. Cabeçalho do checklist
+      const checklist = await comRetryDeRede(async () => {
+        try {
+          return await ssoChecklistService.create(formData, novoChecklistId);
+        } catch (error) {
+          if (isChaveDuplicada(error)) return await ssoChecklistService.getById(novoChecklistId);
+          throw error;
+        }
+      }, 'criar checklist');
+
+      // 2. TODOS os itens numa única requisição.
+      //    Antes era um POST por item, em série: com 36 itens bastava uma
+      //    oscilação de sinal para o checklist inteiro ser perdido.
+      try {
+        await comRetryDeRede(async () => {
+          try {
+            return await ssoItemService.createMany(
+              itens.map(item => ({
+                id: idPorItem.get(item.id),
+                checklist_id: novoChecklistId,
+                item_modelo_id: item.item_modelo_id,
+                avaliacao: item.avaliacao,
+                evidencia: item.evidencia,
+                ordem: item.ordem,
+                tema: item.tema,
+                descricao: item.descricao,
+                fotos: []
+              }))
+            );
+          } catch (error) {
+            if (isChaveDuplicada(error)) return await ssoItemService.getByChecklistId(novoChecklistId);
+            throw error;
+          }
+        }, 'gravar itens do checklist');
+      } catch (error) {
+        // Sem os itens o cabeçalho é lixo: some com ele para não deixar
+        // checklist vazio na listagem nem duplicar quando o técnico refizer.
+        await ssoChecklistService.delete(novoChecklistId).catch(() => undefined);
+        throw error;
+      }
+
+      // 3. Fotos por último. As respostas já estão salvas, então uma falha
+      //    de upload não descarta mais o preenchimento inteiro.
+      const fotosNaoEnviadas: number[] = [];
+
       for (const item of itens) {
-        // Criar item no banco
-        const createdItem = await ssoItemService.create({
-          checklist_id: checklist.id,
-          item_modelo_id: item.item_modelo_id,
-          avaliacao: item.avaliacao,
-          evidencia: item.evidencia,
-          ordem: item.ordem,
-          tema: item.tema,
-          descricao: item.descricao,
-          fotos: []
-        });
-        
-        // Se tem fotos para este item, fazer upload
         const files = itemFiles[item.id];
-        if (files && files.length > 0) {
-          // Upload das fotos
-          const uploads = await ssoStorageService.uploadMultiple(
-            checklist.id, 
-            files
-          );
-          
-          // Adicionar timestamp
-          const fotosComTimestamp = uploads.map(upload => ({
-            ...upload,
-            created_at: new Date().toISOString()
-          }));
-          
-          // Atualizar item com as fotos
-          await ssoItemService.update(createdItem.id, { 
-            fotos: fotosComTimestamp as any
+        if (!files || files.length === 0) continue;
+
+        const itemId = idPorItem.get(item.id);
+        if (!itemId) continue;
+
+        try {
+          const uploads = await ssoStorageService.uploadMultiple(novoChecklistId, files);
+
+          await ssoItemService.update(itemId, {
+            fotos: uploads.map(upload => ({
+              ...upload,
+              created_at: new Date().toISOString()
+            })) as any
           });
+        } catch (error) {
+          console.error(`Falha ao enviar fotos do item ${item.ordem}:`, error);
+          fotosNaoEnviadas.push(item.ordem);
         }
       }
-      
-      return checklist;
+
+      return { checklist, fotosNaoEnviadas };
     },
-    onSuccess: (data) => {
+    onSuccess: ({ fotosNaoEnviadas }) => {
       queryClient.invalidateQueries({ queryKey: ['sso-checklists'] });
+
+      if (fotosNaoEnviadas.length > 0) {
+        toast.warning(
+          `Checklist salvo. As fotos dos itens ${fotosNaoEnviadas.join(', ')} não subiram — ` +
+          'edite o checklist para reenviá-las.'
+        );
+        return;
+      }
+
       toast.success('Checklist criado com sucesso!');
-      return data;
     },
     onError: (error: any) => {
       console.error('Erro ao criar checklist:', error);
-      toast.error(`Erro ao criar checklist: ${error.message}`);
-      throw error;
+      toast.error(
+        isErroDeRede(error)
+          ? MENSAGEM_SEM_CONEXAO
+          : `Erro ao criar checklist: ${error.message}`
+      );
     }
   });
 
